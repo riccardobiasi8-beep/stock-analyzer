@@ -613,11 +613,54 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
             tab1, tab2, tab3, tab4 = st.tabs(["Grafico", "Tecnica", "Fondamentali", "News & Sentiment"])
 
             with tab1:
-                # Period selector inline
+                # ── Metriche in cima stile Apple ──
+                upside = data.get("upside_pct")
+                net_g = data.get("upside_net_pct")
+                ann_r = data.get("annualized_return")
+                t_label = data.get("time_label","—")
+                cur = data['currency']
+
+                st.markdown(f"""
+<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#252830;border-radius:12px;overflow:hidden;margin-bottom:12px'>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:2px'>{fmt(data['entry_price'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#ff9f0a;margin-top:2px'>{fmt(data['target_price'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:2px'>{fmt(data['stop_loss'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:2px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{upside}%' if upside else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{net_g}%' if net_g else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#bf5af2;margin-top:2px'>{f'+{ann_r}%' if ann_r else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
+        <div style='font-size:0.8rem;font-weight:600;color:#4c8eff;margin-top:2px'>{t_label[:22] if t_label else '—'}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+                # Period selector
                 per_sel = st.radio("", ["1M","3M","6M","1Y","2Y"], index=3, horizontal=True, label_visibility="collapsed")
                 per_map = {"1M":"1mo","3M":"3mo","6M":"6mo","1Y":"1y","2Y":"2y"}
                 hist = data["hist"]
-                # Filter history based on selection
                 import pandas as pd
                 cutoff_days = {"1M":21,"3M":63,"6M":126,"1Y":252,"2Y":504}
                 n_days = cutoff_days.get(per_sel, 252)
@@ -689,49 +732,6 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                         font=dict(size=12, color="#eef0f5")),
                 )
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-                # ── Metriche sotto il grafico stile Apple ──
-                upside = data.get("upside_pct")
-                net_g = data.get("upside_net_pct")
-                ann_r = data.get("annualized_return")
-                t_label = data.get("time_label","—")
-
-                st.markdown(f"""
-<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#252830;border-radius:12px;overflow:hidden;margin-top:4px'>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
-        <div style='font-size:1rem;font-weight:600;color:#eef0f5;margin-top:3px'>{fmt(data['entry_price'],cur)}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
-        <div style='font-size:1rem;font-weight:600;color:#ff9f0a;margin-top:3px'>{fmt(data['target_price'],cur)}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
-        <div style='font-size:1rem;font-weight:600;color:#ff453a;margin-top:3px'>{fmt(data['stop_loss'],cur)}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
-        <div style='font-size:1rem;font-weight:600;color:#eef0f5;margin-top:3px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
-        <div style='font-size:1rem;font-weight:600;color:#30d158;margin-top:3px'>{f'+{upside}%' if upside else '—'}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
-        <div style='font-size:1rem;font-weight:600;color:#30d158;margin-top:3px'>{f'+{net_g}%' if net_g else '—'}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
-        <div style='font-size:1rem;font-weight:600;color:#bf5af2;margin-top:3px'>{f'+{ann_r}%' if ann_r else '—'}</div>
-    </div>
-    <div style='background:#13151a;padding:12px 14px'>
-        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
-        <div style='font-size:0.82rem;font-weight:600;color:#4c8eff;margin-top:3px'>{t_label[:22] if t_label else '—'}</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
 
 
             with tab2:
