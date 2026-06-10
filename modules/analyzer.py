@@ -2,16 +2,41 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
+def _try_ticker_variants(ticker: str):
+    """Try ticker and common variants across exchanges."""
+    variants = [ticker]
+    base = ticker.split(".")[0]
+    if "." not in ticker:
+        # US ticker — prova anche listing europei
+        variants += [f"{base}.MI", f"{base}.DE", f"{base}.PA", f"{base}.AS", f"{base}.L"]
+    variants += [base]  # solo base come fallback
+    return variants
+
+
 def get_stock_data(ticker: str, period: str = "1y") -> dict:
-    """Fetch all data for a given ticker."""
+    """Fetch all data for a given ticker, trying variants if needed."""
     try:
-        stock = yf.Ticker(ticker)
-        # Always fetch 2y to have enough data for MA200, RSI, Bollinger
-        hist = stock.history(period="2y")
-        info = stock.info
+        # Try ticker and variants
+        hist = pd.DataFrame()
+        info = {}
+        used_ticker = ticker
+
+        for variant in _try_ticker_variants(ticker):
+            try:
+                stock = yf.Ticker(variant)
+                h = stock.history(period="2y")
+                if not h.empty and len(h) > 10:
+                    hist = h
+                    info = stock.info
+                    used_ticker = variant
+                    break
+            except Exception:
+                continue
 
         if hist.empty:
-            return {"error": f"Nessun dato trovato per {ticker}"}
+            return {"error": f"Nessun dato trovato per {ticker} — prova a inserire il ticker esatto (es. STM.MI, STM.PA, STM)"}
+
+        ticker = used_ticker  # usa il ticker che ha funzionato
 
         # --- Technical indicators ---
         close = hist["Close"].astype(float)
