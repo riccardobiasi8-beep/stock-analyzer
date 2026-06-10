@@ -394,30 +394,47 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 # ── METODO 4: Regola del 3 applicata alla categoria ───────
                 # Corregge l'ottimismo algoritmico
                 if estimated_months_raw <= 1:
-                    # "1 mese" → in realtà 3 mesi
                     estimated_months = round(estimated_months_raw * 3, 1)
                     correction_note = "×3 (regola prudenza)"
                 elif estimated_months_raw <= 3:
-                    # "3 mesi" → in realtà ~6-9 mesi
                     estimated_months = round(estimated_months_raw * 2.5, 1)
                     correction_note = "×2.5 (regola prudenza)"
                 elif estimated_months_raw <= 12:
-                    # "6-12 mesi" → ×2
                     estimated_months = round(estimated_months_raw * 2.0, 1)
                     correction_note = "×2 (regola prudenza)"
                 else:
                     estimated_months = round(estimated_months_raw * 1.5, 1)
                     correction_note = "×1.5 (regola prudenza)"
 
-                # Cap: min 1 mese, max 4 anni
-                estimated_months = max(1.0, min(estimated_months, 48.0))
+                # ── FLOOR MINIMO PER SETTORE ──────────────────────────────
+                # Ogni settore ha un tempo minimo realistico basato sulla sua natura
+                sector_floor = {
+                    "Financial Services": 6,      # banche: almeno 2 trimestrali
+                    "Utilities": 9,               # utility: crescita lenta
+                    "Real Estate": 9,             # REIT: ciclo lungo
+                    "Consumer Defensive": 6,      # staples: lenti
+                    "Healthcare": 6,              # pharma: dipende da pipeline
+                    "Industrials": 6,             # industriali: ciclo medio
+                    "Energy": 5,                  # energy: volatile ma può muoversi
+                    "Basic Materials": 4,
+                    "Communication Services": 5,
+                    "Consumer Cyclical": 4,
+                    "Technology": 3,              # tech: può muoversi veloce
+                }.get(str(sector), 4)
+
+                # Applica il floor: il tempo non può essere inferiore al minimo di settore
+                estimated_months = max(estimated_months, float(sector_floor))
+
+                # Cap: max 4 anni
+                estimated_months = min(estimated_months, 48.0)
                 estimated_days = int(estimated_months * 21)
 
                 # Dettaglio metodologia
                 time_detail = (
                     f"ATR({round(atr_months,1)}m) + "
                     f"Velocità({round(velocity_months,1) if velocity_months else '?'}m) + "
-                    f"Catalizzatore({catalyst_months}m) → {correction_note}"
+                    f"Catalizzatore({catalyst_months}m) → {correction_note} "
+                    f"[floor settore: {sector_floor}m]"
                 )
 
                 # Label finale
@@ -437,10 +454,12 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                     time_label = f"~{round(estimated_months/12,1):.1f} anni"
                     time_category = "⛔ Molto lungo (> 2 anni)"
 
-                # Rendimento annualizzato realistico
+                # Rendimento annualizzato — cappato al rendimento atteso di settore ×2
                 if estimated_months > 0 and upside:
                     annualized_return = round(upside / (estimated_months / 12), 1)
-                    annualized_return = min(annualized_return, 200)
+                    # Cap realistico: mai più di 2× il rendimento annuo atteso per settore
+                    max_annual = annual_expected_pct * 2
+                    annualized_return = min(annualized_return, max_annual)
 
         except Exception:
             time_label = "N/A"
@@ -518,3 +537,4 @@ def get_sector_pe(sector: str) -> float:
         "Communication Services": 20,
     }
     return sector_pe.get(sector, 18)
+    
