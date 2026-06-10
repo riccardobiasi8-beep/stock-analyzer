@@ -859,108 +859,74 @@ elif page == "🎯 Screener Scontati":
         df_placeholder = False
     if not df_placeholder:
 
-        if df is not None and not df.empty:
-            pass
         if df is None or df.empty:
             if st.session_state.screener_df is None:
                 st.info("Configura i filtri e clicca Avvia Screener.")
             else:
-                st.warning("Nessun titolo trovato con i criteri selezionati. Prova ad abbassare lo score minimo.")
+                st.warning("Nessun titolo trovato. Prova ad abbassare lo score minimo.")
         else:
-            def r(v, d=2): return round(v, d) if isinstance(v, (int, float)) and v == v else None
-            def fmt(v, suffix=""): return f"{r(v):,.2f}{suffix}" if r(v) is not None else "—"
+            def rv(v, d=2):
+                try:
+                    f = float(v)
+                    return None if f != f else round(f, d)
+                except: return None
 
-            n = len(df)
-            st.markdown(f"""
-<div style='display:flex;align-items:center;gap:12px;margin-bottom:20px'>
-    <div style='background:#1c1f27;border:1px solid #252830;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:10px'>
-        <div style='width:8px;height:8px;border-radius:50%;background:#34c759'></div>
-        <span style='color:#eef0f5;font-weight:600;font-size:1rem'>{n} titoli trovati</span>
-        <span style='color:#555a66;font-size:0.82rem'>score ≥ {min_score}</span>
-    </div>
-</div>""", unsafe_allow_html=True)
+            st.success(f"✅ {len(df)} titoli trovati con score ≥ {min_score}")
 
             for _, row in df.iterrows():
                 sig = str(row.get("Segnale", ""))
-                score_val = r(row.get("Score", 0), 0) or 0
-                sig_color = "#34c759" if "BUY" in sig else ("#ff9f0a" if "HOLD" in sig else "#ff453a")
-                sig_bg = "rgba(52,199,89,0.08)" if "BUY" in sig else ("rgba(255,159,10,0.08)" if "HOLD" in sig else "rgba(255,69,58,0.08)")
-                upside = r(row.get("Upside % lordo"), 1)
-                upside_net = r(row.get("Upside % netto"), 1)
-                tempo = str(row.get("Tempo stimato", "—")).replace("🔵","").replace("🟢","").replace("🟡","").replace("🟠","").replace("🔴","").strip()
-                ann = r(row.get("Rend. annualizzato"), 1)
-                pe = r(row.get("P/E"), 1)
-                pb = r(row.get("P/B"), 2)
-                rsi = r(row.get("RSI"), 1)
-                valuta = row.get("Valuta", "")
-                prezzo = r(row.get("Prezzo"), 2)
-                entry = r(row.get("Entry"), 2)
-                target = r(row.get("Target"), 2)
-                stop = r(row.get("Stop Loss"), 2)
-                nome = str(row.get("Nome", row.get("Ticker", "")))[:35]
-                settore = str(row.get("Settore", "—"))
+                score_val = rv(row.get("Score"), 0) or 0
                 ticker = str(row.get("Ticker", ""))
+                nome = str(row.get("Nome", ticker))[:40]
+                settore = str(row.get("Settore", "—"))
+                valuta = str(row.get("Valuta", ""))
+                prezzo = rv(row.get("Prezzo"), 2)
+                target = rv(row.get("Target"), 2)
+                stop = rv(row.get("Stop Loss"), 2)
+                entry = rv(row.get("Entry"), 2)
+                upside = rv(row.get("Upside % lordo"), 1)
+                upside_net = rv(row.get("Upside % netto"), 1)
+                ann = rv(row.get("Rend. annualizzato"), 1)
+                tempo = str(row.get("Tempo stimato", "—")).replace("🔵","").replace("🟢","").replace("🟡","").replace("🟠","").replace("🔴","").strip()
+                pe = rv(row.get("P/E"), 1)
+                pb = rv(row.get("P/B"), 2)
+                rsi = rv(row.get("RSI"), 1)
+                sig_icon = "🟢" if "BUY" in sig else ("🟡" if "HOLD" in sig else "🔴")
 
-                # Summary card
-                st.markdown(f"""
-<div style='background:#1c1f27;border:1px solid #252830;border-radius:16px;padding:18px 22px;margin-bottom:10px'>
-    <div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px'>
+                with st.container(border=True):
+                    # Header row
+                    h1, h2 = st.columns([2, 1])
+                    with h1:
+                        st.markdown(f"### {sig_icon} {ticker} &nbsp; <span style='font-size:0.85rem;color:#9096a8;font-weight:400'>{nome}</span>", unsafe_allow_html=True)
+                        st.caption(f"{settore}  ·  Score: **{score_val}/100**  ·  {sig}")
+                    with h2:
+                        if upside and upside > 0:
+                            st.metric("Upside lordo", f"+{upside}%", delta=f"netto +{upside_net}%" if upside_net else None)
 
-        <div style='display:flex;align-items:center;gap:14px;min-width:200px'>
-            <div style='background:{sig_bg};border:1px solid {sig_color}44;border-radius:10px;padding:8px 14px;text-align:center;min-width:60px'>
-                <div style='font-size:1.15rem;font-weight:700;color:{sig_color};letter-spacing:-0.02em'>{score_val}</div>
-                <div style='font-size:0.6rem;color:{sig_color};font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:1px'>score</div>
-            </div>
-            <div>
-                <div style='font-size:1rem;font-weight:700;color:#eef0f5;letter-spacing:-0.01em'>{ticker}</div>
-                <div style='font-size:0.78rem;color:#9096a8;margin-top:2px'>{nome}</div>
-                <div style='font-size:0.72rem;color:#555a66;margin-top:2px'>{settore}</div>
-            </div>
-        </div>
+                    # Price row
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    c1.metric("💰 Prezzo", f"{prezzo} {valuta}" if prezzo else "—")
+                    c2.metric("🎯 Target", f"{target} {valuta}" if target else "—")
+                    c3.metric("🛡 Stop Loss", f"{stop} {valuta}" if stop else "—")
+                    c4.metric("⏱ Tempo", tempo[:20] if tempo else "—")
+                    c5.metric("📊 Rend. annuo", f"+{ann}%" if ann else "—")
 
-        <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>
-            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
-                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Prezzo</div>
-                <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:3px'>{prezzo} {valuta}</div>
-            </div>
-            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
-                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
-                <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:3px'>{target} {valuta}</div>
-            </div>
-            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
-                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
-                <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:3px'>{stop} {valuta}</div>
-            </div>
-            <div style='background:{sig_bg};border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
-                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
-                <div style='font-size:0.95rem;font-weight:700;color:{sig_color};margin-top:3px'>+{upside}%</div>
-            </div>
-            {f'<div style="background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Netto IT</div><div style="font-size:0.95rem;font-weight:600;color:#34c759;margin-top:3px">+{upside_net}%</div></div>' if upside_net else ''}
-            {f'<div style="background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Rend. annuo</div><div style="font-size:0.95rem;font-weight:600;color:#bf5af2;margin-top:3px">+{ann}%</div></div>' if ann else ''}
-        </div>
-
-        <div style='font-size:0.78rem;color:#555a66;align-self:center;white-space:nowrap'>⏱ {tempo}</div>
-    </div>
-</div>""", unsafe_allow_html=True)
-
-                # Expand per dettagli
-                with st.expander(f"📊 Dettagli completi — {ticker}"):
-                    d1, d2, d3, d4 = st.columns(4)
-                    d1.metric("Entry", f"{entry} {valuta}")
-                    d2.metric("RSI", f"{rsi}" if rsi else "—")
-                    d3.metric("P/E", f"{pe}" if pe else "—")
-                    d4.metric("P/B", f"{pb}" if pb else "—")
-                    st.markdown(f"**Segnale:** {sig} &nbsp;|&nbsp; **Score:** {score_val}/100 &nbsp;|&nbsp; **Settore:** {settore}", unsafe_allow_html=True)
-                    if st.button(f"🔍 Analizza {ticker} in dettaglio", key=f"btn_{ticker}"):
-                        st.session_state.last_ticker = ticker
-                        st.session_state.last_data = None
-                        st.rerun()
+                    # Expand details
+                    with st.expander("Dettagli fondamentali"):
+                        d1, d2, d3, d4 = st.columns(4)
+                        d1.metric("Entry suggerito", f"{entry} {valuta}" if entry else "—")
+                        d2.metric("RSI", f"{rsi}" if rsi else "—")
+                        d3.metric("P/E", f"{pe}" if pe else "—")
+                        d4.metric("P/B", f"{pb}" if pb else "—")
+                        if st.button(f"🔍 Analisi completa di {ticker}", key=f"go_{ticker}", type="primary"):
+                            st.session_state.last_ticker = ticker
+                            st.session_state.last_data = None
+                            st.session_state.page_override = "🔍 Analisi Titolo"
+                            st.rerun()
 
             st.divider()
-            col_dl, _ = st.columns([1, 3])
-            with col_dl:
-                csv = df.to_csv(index=False).encode("utf-8")
-                st.download_button("⬇️ Esporta CSV", csv, "screener.csv", "text/csv")
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Esporta CSV", csv, "screener.csv", "text/csv", use_container_width=False)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
