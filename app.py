@@ -5,6 +5,7 @@ import pandas as pd
 from modules.analyzer import get_stock_data
 from modules.screener import run_screener, MARKET_GROUPS
 from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context, get_full_sentiment
+from modules.validator import validate_stock_data
 import time
 
 # ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
@@ -183,6 +184,7 @@ import pandas as pd
 from modules.analyzer import get_stock_data
 from modules.screener import run_screener, MARKET_GROUPS
 from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context, get_full_sentiment
+from modules.validator import validate_stock_data
 import time
 
 # ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
@@ -532,6 +534,11 @@ if page == "🔍 Analisi Titolo":
         if ticker_input != st.session_state.last_ticker or st.session_state.last_data is None:
             with st.spinner(f"Carico dati per {ticker_input}..."):
                 data = get_stock_data(ticker_input, period=period)
+                # Validate data with Groq
+                _gkey = st.secrets.get("GROQ_API_KEY", "")
+                if _gkey and "error" not in data:
+                    with st.spinner("Validazione dati con AI..."):
+                        data = validate_stock_data(data, _gkey)
             st.session_state.last_data = data
             st.session_state.last_ticker = ticker_input
             st.session_state.last_period = period
