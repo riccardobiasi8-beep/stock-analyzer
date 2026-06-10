@@ -549,56 +549,189 @@ if page == "🔍 Analisi Titolo":
             st.error(f"❌ {data['error']}")
             st.info("💡 Suggerimento: prova il ticker esatto come appare su Yahoo Finance. Esempi: **STM** (NYSE), **ENI.MI** (Milano), **SAP.DE** (Francoforte), **MC.PA** (Parigi)")
         else:
-            # ── Header ──
-            st.subheader(f"{data['name']} ({data['ticker']})")
-            st.caption(f"{data['sector']} · {data['industry']}")
+            def fmt(v, cur=""): return f"{v:,.2f} {cur}".strip() if v else "—"
 
-            # ── KPI row ──
-            k1, k2, k3, k4, k5 = st.columns(5)
-            def fmt(v, cur=""): return f"{v:,.2f} {cur}".strip() if v else "N/A"
-            k1.metric("💰 Prezzo", fmt(data['current_price'], data['currency']))
-            k2.metric("🎯 Entry suggerito", fmt(data['entry_price'], data['currency']))
-            k3.metric("🚀 Target price", fmt(data['target_price'], data['currency']),
-                      delta=f"+{data['upside_pct']}%" if data['upside_pct'] else None)
-            k4.metric("🛡️ Stop Loss", fmt(data['stop_loss'], data['currency']))
-            k5.metric("Fair Value (DCF)", fmt(data['fair_value'], data['currency']) if data['fair_value'] else "N/A")
+            # ── Apple-style header ──
+            cur = data['currency']
+            price = data['current_price']
+            chg_1d = None
+            try:
+                h1d = data["hist"]["Close"]
+                if len(h1d) >= 2:
+                    chg_1d = round(h1d.iloc[-1] - h1d.iloc[-2], 2)
+                    chg_1d_pct = round(chg_1d / h1d.iloc[-2] * 100, 2)
+            except: chg_1d = chg_1d_pct = None
 
-            # ── Stima tempo + guadagno ──
-            if data.get("upside_pct") and data["upside_pct"] > 0:
-                tc = data.get("time_category", "N/A")
-                tc_color = "#4c8eff" if "Breve" in tc else ("#30d158" if "Medio" in tc and "Lungo" not in tc else ("#ff9f0a" if "Lungo" in tc else ("#ff8c42" if "Molto" in tc else "#636366")))
-                ann = data.get("annualized_return")
-                net = data.get("upside_net_pct")
-                st.markdown(f"""
-<div style='background:#1e2128;border-radius:10px;padding:16px;margin:8px 0;display:flex;gap:32px;flex-wrap:wrap;border:1px solid #252830'>
-    <div>
-        <div style='color:#6b6e77;font-size:0.78rem'>⏱ Tempo stimato al target</div>
-        <div style='color:{tc_color};font-weight:700;font-size:1.05rem'>{data.get("time_label","N/A")}</div>
+            chg_color = "#30d158" if (chg_1d or 0) >= 0 else "#ff453a"
+            chg_str = f"{'+' if (chg_1d or 0)>=0 else ''}{chg_1d} ({'+' if (chg_1d_pct or 0)>=0 else ''}{chg_1d_pct}%)" if chg_1d is not None else ""
+            score = data["score"]
+            sig_color = "#30d158" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
+
+            st.markdown(f"""
+<div style='padding:4px 0 16px'>
+    <div style='font-size:0.78rem;color:#555a66;font-weight:500;text-transform:uppercase;letter-spacing:0.06em'>{data['ticker']} · {data['sector']}</div>
+    <div style='font-size:0.95rem;color:#9096a8;margin:2px 0 8px'>{data['name']}</div>
+    <div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap'>
+        <span style='font-size:2.6rem;font-weight:700;color:#eef0f5;letter-spacing:-0.04em;line-height:1'>{price} {cur}</span>
+        <span style='font-size:1rem;font-weight:500;color:{chg_color}'>{chg_str}</span>
     </div>
-    <div>
-        <div style='color:#6b6e77;font-size:0.78rem'>📈 Guadagno lordo</div>
-        <div style='color:#30d158;font-weight:700;font-size:1.05rem'>+{data['upside_pct']}%</div>
+    <div style='display:flex;align-items:center;gap:16px;margin-top:10px;flex-wrap:wrap'>
+        <span style='background:{sig_color}22;border:1px solid {sig_color}55;border-radius:6px;padding:3px 10px;font-size:0.8rem;font-weight:600;color:{sig_color}'>{data['signal']}</span>
+        <span style='font-size:0.8rem;color:#555a66'>Score {score}/100</span>
+        <div style='flex:1;max-width:120px;height:3px;background:#1c1f27;border-radius:2px'>
+            <div style='height:3px;width:{score}%;background:{sig_color};border-radius:2px'></div>
+        </div>
     </div>
-    <div>
-        <div style='color:#6b6e77;font-size:0.78rem'>💶 Guadagno netto (−26% tasse IT)</div>
-        <div style='color:#30d158;font-weight:700;font-size:1.05rem'>+{net}%</div>
-    </div>
-    {'<div><div style="color:#6b6e77;font-size:0.78rem">📊 Rendimento annualizzato</div><div style="color:#bf5af2;font-weight:700;font-size:1.05rem">+' + str(ann) + '% /anno</div></div>' if ann else ''}
 </div>
 """, unsafe_allow_html=True)
 
-            # ── Signal ──
-            score = data["score"]
-            signal_color = "#30d158" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
-            st.markdown(f"""
-            <div style='background:#1e2128;border-radius:14px;padding:22px 24px;margin:14px 0;border:1px solid {signal_color}44'>
-                <span style='font-size:1.6rem;font-weight:800;color:{signal_color}'>{data['signal']}</span>
-                <span style='color:#6b6e77;margin-left:20px'>Score composito: <b style='color:#f5f5f7'>{score}/100</b></span>
-                <div style='background:#2c2c2e;border-radius:4px;height:8px;margin-top:10px'>
-                    <div style='background:{signal_color};width:{score}%;height:5px;border-radius:4px'></div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # ── AI Summary auto ───────────────────────────────────────────
+            groq_key = st.secrets.get("GROQ_API_KEY", "")
+            if groq_key:
+                ai_cache_key = f"ai_{ticker_input}"
+                if ai_cache_key not in st.session_state:
+                    with st.spinner(""):
+                        try:
+                            import requests as req
+                            _prompt = f"""Analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) in italiano, max 100 parole totali.
+Dati: Prezzo {price} {cur} | Segnale {data['signal']} score {score}/100 | Entry {data['entry_price']} | Target {data['target_price']} | Stop {data['stop_loss']} | Upside {data['upside_pct']}% | RSI {data['rsi']} | P/E {data['pe']} | Settore {data['sector']}
+Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entry: X. Target: Y. Stop: Z."""
+                            _r = req.post("https://api.groq.com/openai/v1/chat/completions",
+                                headers={"Content-Type":"application/json","Authorization":f"Bearer {groq_key}"},
+                                json={"model":"llama-3.3-70b-versatile","max_tokens":200,"messages":[{"role":"user","content":_prompt}]},
+                                timeout=15)
+                            _j = _r.json()
+                            st.session_state[ai_cache_key] = _j["choices"][0]["message"]["content"]
+                        except: st.session_state[ai_cache_key] = None
+                ai_text = st.session_state.get(ai_cache_key)
+                if ai_text:
+                    import re as _re
+                    ai_clean = _re.sub(r'\*\*(.*?)\*\*', r'', ai_text)
+                    st.markdown(f"<div style='background:#1c1f27;border-left:3px solid {sig_color};padding:12px 16px;margin:0 0 16px;border-radius:0 10px 10px 0;font-size:0.84rem;color:#9096a8;line-height:1.65'>{ai_clean}</div>", unsafe_allow_html=True)
+
+            # ── Tabs ──
+            tab1, tab2, tab3, tab4 = st.tabs(["Grafico", "Tecnica", "Fondamentali", "News & Sentiment"])
+
+            with tab1:
+                # Period selector inline
+                per_sel = st.radio("", ["1M","3M","6M","1Y","2Y"], index=3, horizontal=True, label_visibility="collapsed")
+                per_map = {"1M":"1mo","3M":"3mo","6M":"6mo","1Y":"1y","2Y":"2y"}
+                hist = data["hist"]
+                # Filter history based on selection
+                import pandas as pd
+                cutoff_days = {"1M":21,"3M":63,"6M":126,"1Y":252,"2Y":504}
+                n_days = cutoff_days.get(per_sel, 252)
+                hist_view = hist.tail(n_days)
+
+                # Apple-style: single line chart for main price
+                close_vals = hist_view["Close"].values
+                is_up = close_vals[-1] >= close_vals[0]
+                line_color = "#30d158" if is_up else "#ff453a"
+                fill_color = "rgba(48,209,88,0.08)" if is_up else "rgba(255,69,58,0.08)"
+
+                fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                    row_heights=[0.78, 0.22], vertical_spacing=0.02)
+
+                # Main price line
+                fig.add_trace(go.Scatter(
+                    x=hist_view.index, y=hist_view["Close"],
+                    mode="lines", name="",
+                    line=dict(color=line_color, width=2),
+                    fill="tozeroy", fillcolor=fill_color,
+                    hovertemplate="%{y:.2f}<extra></extra>",
+                ), row=1, col=1)
+
+                # MA50 subtle
+                if "MA50" in hist_view.columns:
+                    fig.add_trace(go.Scatter(x=hist_view.index, y=hist_view["MA50"],
+                        mode="lines", name="MA50",
+                        line=dict(color="#4c8eff", width=1, dash="dot"),
+                        hovertemplate="%{y:.2f}<extra></extra>",
+                    ), row=1, col=1)
+
+                # Volume bars
+                vol_colors = ["#30d158" if c >= o else "#ff453a"
+                    for c, o in zip(hist_view["Close"], hist_view["Open"])]
+                fig.add_trace(go.Bar(x=hist_view.index, y=hist_view["Volume"],
+                    marker_color=vol_colors, opacity=0.4, name="",
+                    hovertemplate="%{y:,.0f}<extra></extra>",
+                ), row=2, col=1)
+
+                # Target line
+                if data.get("target_price"):
+                    fig.add_hline(y=data["target_price"], line_dash="dot",
+                        line_color="#ff9f0a", line_width=1,
+                        annotation_text=f"Target {data['target_price']}",
+                        annotation_font_color="#ff9f0a", annotation_font_size=10,
+                        row=1, col=1)
+                if data.get("stop_loss"):
+                    fig.add_hline(y=data["stop_loss"], line_dash="dot",
+                        line_color="#ff453a", line_width=1,
+                        annotation_text=f"Stop {data['stop_loss']}",
+                        annotation_font_color="#ff453a", annotation_font_size=10,
+                        row=1, col=1)
+
+                fig.update_layout(
+                    height=420, showlegend=False,
+                    paper_bgcolor="#13151a", plot_bgcolor="#13151a",
+                    margin=dict(l=0, r=48, t=8, b=0),
+                    font=dict(family="Inter,-apple-system,sans-serif", size=11, color="#555a66"),
+                    xaxis=dict(showgrid=False, zeroline=False, showline=False,
+                        tickfont=dict(size=10, color="#555a66"), tickformat="%b %y"),
+                    yaxis=dict(showgrid=True, gridcolor="#1c1f27", gridwidth=0.5,
+                        zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66"),
+                        side="right"),
+                    xaxis2=dict(showgrid=False, zeroline=False, showline=False,
+                        tickfont=dict(size=10, color="#555a66"), tickformat="%b %y"),
+                    yaxis2=dict(showgrid=False, zeroline=False, showline=False,
+                        tickfont=dict(size=9, color="#555a66"), side="right"),
+                    hoverlabel=dict(bgcolor="#1c1f27", bordercolor="#252830",
+                        font=dict(size=12, color="#eef0f5")),
+                )
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+                # ── Metriche sotto il grafico stile Apple ──
+                upside = data.get("upside_pct")
+                net_g = data.get("upside_net_pct")
+                ann_r = data.get("annualized_return")
+                t_label = data.get("time_label","—")
+
+                st.markdown(f"""
+<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#252830;border-radius:12px;overflow:hidden;margin-top:4px'>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
+        <div style='font-size:1rem;font-weight:600;color:#eef0f5;margin-top:3px'>{fmt(data['entry_price'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
+        <div style='font-size:1rem;font-weight:600;color:#ff9f0a;margin-top:3px'>{fmt(data['target_price'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
+        <div style='font-size:1rem;font-weight:600;color:#ff453a;margin-top:3px'>{fmt(data['stop_loss'],cur)}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
+        <div style='font-size:1rem;font-weight:600;color:#eef0f5;margin-top:3px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
+        <div style='font-size:1rem;font-weight:600;color:#30d158;margin-top:3px'>{f'+{upside}%' if upside else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
+        <div style='font-size:1rem;font-weight:600;color:#30d158;margin-top:3px'>{f'+{net_g}%' if net_g else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
+        <div style='font-size:1rem;font-weight:600;color:#bf5af2;margin-top:3px'>{f'+{ann_r}%' if ann_r else '—'}</div>
+    </div>
+    <div style='background:#13151a;padding:12px 14px'>
+        <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
+        <div style='font-size:0.82rem;font-weight:600;color:#4c8eff;margin-top:3px'>{t_label[:22] if t_label else '—'}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
             # ── AI Summary auto (above chart) ────────────────────────────
             groq_key = st.secrets.get("GROQ_API_KEY", "")
