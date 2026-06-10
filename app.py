@@ -867,48 +867,100 @@ elif page == "🎯 Screener Scontati":
             else:
                 st.warning("Nessun titolo trovato con i criteri selezionati. Prova ad abbassare lo score minimo.")
         else:
-            st.success(f"✅ Trovati {len(df)} titoli con score ≥ {min_score}")
+            def r(v, d=2): return round(v, d) if isinstance(v, (int, float)) and v == v else None
+            def fmt(v, suffix=""): return f"{r(v):,.2f}{suffix}" if r(v) is not None else "—"
 
-            # Color score column
-            def color_signal(val):
-                if "BUY" in str(val): return "color: #30d158; font-weight: bold"
-                if "HOLD" in str(val): return "color: #ff9f0a"
-                return "color: #ff453a"
+            n = len(df)
+            st.markdown(f"""
+<div style='display:flex;align-items:center;gap:12px;margin-bottom:20px'>
+    <div style='background:#1c1f27;border:1px solid #252830;border-radius:10px;padding:12px 20px;display:flex;align-items:center;gap:10px'>
+        <div style='width:8px;height:8px;border-radius:50%;background:#34c759'></div>
+        <span style='color:#eef0f5;font-weight:600;font-size:1rem'>{n} titoli trovati</span>
+        <span style='color:#555a66;font-size:0.82rem'>score ≥ {min_score}</span>
+    </div>
+</div>""", unsafe_allow_html=True)
 
-            def color_score(val):
-                if isinstance(val, (int, float)):
-                    if val >= 65: return "color: #34c759; font-weight: 600"
-                    if val >= 50: return "color: #ff9f0a; font-weight: 600"
-                    return "color: #ff453a"
-                return ""
+            for _, row in df.iterrows():
+                sig = str(row.get("Segnale", ""))
+                score_val = r(row.get("Score", 0), 0) or 0
+                sig_color = "#34c759" if "BUY" in sig else ("#ff9f0a" if "HOLD" in sig else "#ff453a")
+                sig_bg = "rgba(52,199,89,0.08)" if "BUY" in sig else ("rgba(255,159,10,0.08)" if "HOLD" in sig else "rgba(255,69,58,0.08)")
+                upside = r(row.get("Upside % lordo"), 1)
+                upside_net = r(row.get("Upside % netto"), 1)
+                tempo = str(row.get("Tempo stimato", "—")).replace("🔵","").replace("🟢","").replace("🟡","").replace("🟠","").replace("🔴","").strip()
+                ann = r(row.get("Rend. annualizzato"), 1)
+                pe = r(row.get("P/E"), 1)
+                pb = r(row.get("P/B"), 2)
+                rsi = r(row.get("RSI"), 1)
+                valuta = row.get("Valuta", "")
+                prezzo = r(row.get("Prezzo"), 2)
+                entry = r(row.get("Entry"), 2)
+                target = r(row.get("Target"), 2)
+                stop = r(row.get("Stop Loss"), 2)
+                nome = str(row.get("Nome", row.get("Ticker", "")))[:35]
+                settore = str(row.get("Settore", "—"))
+                ticker = str(row.get("Ticker", ""))
 
-            # Round numeric columns
-            num_cols = ["Prezzo","Entry","Target","Stop Loss","Upside % lordo","Upside % netto","Rend. annualizzato","Fair Value","RSI","P/E","P/B"]
-            for col in num_cols:
-                if col in df.columns:
-                    df[col] = df[col].apply(lambda x: round(x, 2) if isinstance(x, float) else x)
+                # Summary card
+                st.markdown(f"""
+<div style='background:#1c1f27;border:1px solid #252830;border-radius:16px;padding:18px 22px;margin-bottom:10px'>
+    <div style='display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px'>
 
-            styled = (df.style
-                .map(color_signal, subset=["Segnale"])
-                .map(color_score, subset=["Score"]))
-            st.dataframe(styled, use_container_width=True, height=520)
+        <div style='display:flex;align-items:center;gap:14px;min-width:200px'>
+            <div style='background:{sig_bg};border:1px solid {sig_color}44;border-radius:10px;padding:8px 14px;text-align:center;min-width:60px'>
+                <div style='font-size:1.15rem;font-weight:700;color:{sig_color};letter-spacing:-0.02em'>{score_val}</div>
+                <div style='font-size:0.6rem;color:{sig_color};font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin-top:1px'>score</div>
+            </div>
+            <div>
+                <div style='font-size:1rem;font-weight:700;color:#eef0f5;letter-spacing:-0.01em'>{ticker}</div>
+                <div style='font-size:0.78rem;color:#9096a8;margin-top:2px'>{nome}</div>
+                <div style='font-size:0.72rem;color:#555a66;margin-top:2px'>{settore}</div>
+            </div>
+        </div>
 
-            # Download CSV
-            csv = df.to_csv(index=False).encode("utf-8")
-            st.download_button("⬇️ Scarica CSV", csv, "screener_risultati.csv", "text/csv")
+        <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>
+            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
+                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Prezzo</div>
+                <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:3px'>{prezzo} {valuta}</div>
+            </div>
+            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
+                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
+                <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:3px'>{target} {valuta}</div>
+            </div>
+            <div style='background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
+                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
+                <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:3px'>{stop} {valuta}</div>
+            </div>
+            <div style='background:{sig_bg};border-radius:8px;padding:8px 14px;text-align:center;min-width:80px'>
+                <div style='font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
+                <div style='font-size:0.95rem;font-weight:700;color:{sig_color};margin-top:3px'>+{upside}%</div>
+            </div>
+            {f'<div style="background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:80px"><div style="font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Netto IT</div><div style="font-size:0.95rem;font-weight:600;color:#34c759;margin-top:3px">+{upside_net}%</div></div>' if upside_net else ''}
+            {f'<div style="background:#13151a;border-radius:8px;padding:8px 14px;text-align:center;min-width:90px"><div style="font-size:0.65rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Rend. annuo</div><div style="font-size:0.95rem;font-weight:600;color:#bf5af2;margin-top:3px">+{ann}%</div></div>' if ann else ''}
+        </div>
 
-            # Quick chart of top 5
-            st.subheader("Top 5 per Score")
-            top5 = df.head(5)
-            import plotly.express as px
-            fig = px.bar(
-                top5, x="Ticker", y="Score",
-                color="Score", color_continuous_scale=["#ff453a", "#ff9f0a", "#30d158"],
-                text="Score", template="plotly_dark",
-            )
-            fig.update_layout(paper_bgcolor="#000000", plot_bgcolor="#000000",
-                              showlegend=False, height=300)
-            st.plotly_chart(fig, use_container_width=True)
+        <div style='font-size:0.78rem;color:#555a66;align-self:center;white-space:nowrap'>⏱ {tempo}</div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+                # Expand per dettagli
+                with st.expander(f"📊 Dettagli completi — {ticker}"):
+                    d1, d2, d3, d4 = st.columns(4)
+                    d1.metric("Entry", f"{entry} {valuta}")
+                    d2.metric("RSI", f"{rsi}" if rsi else "—")
+                    d3.metric("P/E", f"{pe}" if pe else "—")
+                    d4.metric("P/B", f"{pb}" if pb else "—")
+                    st.markdown(f"**Segnale:** {sig} &nbsp;|&nbsp; **Score:** {score_val}/100 &nbsp;|&nbsp; **Settore:** {settore}", unsafe_allow_html=True)
+                    if st.button(f"🔍 Analizza {ticker} in dettaglio", key=f"btn_{ticker}"):
+                        st.session_state.last_ticker = ticker
+                        st.session_state.last_data = None
+                        st.rerun()
+
+            st.divider()
+            col_dl, _ = st.columns([1, 3])
+            with col_dl:
+                csv = df.to_csv(index=False).encode("utf-8")
+                st.download_button("⬇️ Esporta CSV", csv, "screener.csv", "text/csv")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
