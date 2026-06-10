@@ -104,75 +104,72 @@ if "screener_df" not in st.session_state:
 if "screener_market" not in st.session_state:
     st.session_state.screener_market = ""
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── Custom CSS — Apple Borsa identical ────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-* { font-family: 'Inter', -apple-system, sans-serif; box-sizing: border-box; }
-.stApp { background: #13151a !important; }
-.main .block-container { padding: 2rem 2.5rem !important; max-width: 1300px !important; }
-section[data-testid="stSidebar"] { background: #181b22 !important; border-right: 1px solid #252830 !important; }
-section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] div { color: #c4c8d4 !important; }
-h1 { font-size: 1.8rem !important; font-weight: 700 !important; letter-spacing: -0.03em !important; color: #eef0f5 !important; }
-h2 { font-size: 1.2rem !important; font-weight: 600 !important; color: #eef0f5 !important; }
-h3 { font-size: 1rem !important; font-weight: 600 !important; color: #eef0f5 !important; }
-p, .stMarkdown p { color: #9096a8 !important; line-height: 1.6 !important; }
-.stCaption { color: #555a66 !important; font-size: 0.78rem !important; }
-label { color: #9096a8 !important; }
-[data-testid="metric-container"] { background: #1c1f27 !important; border: 1px solid #252830 !important; border-radius: 14px !important; padding: 18px 20px !important; }
-[data-testid="metric-container"] label { color: #555a66 !important; font-size: 0.68rem !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: 0.08em !important; }
-[data-testid="stMetricValue"] { color: #eef0f5 !important; font-size: 1.45rem !important; font-weight: 600 !important; letter-spacing: -0.02em !important; }
-[data-testid="stMetricDelta"] { font-size: 0.82rem !important; font-weight: 500 !important; }
-[data-testid="stMetricDelta"] svg { display: none !important; }
-.stTextInput input { background: #1c1f27 !important; border: 1px solid #252830 !important; border-radius: 10px !important; color: #eef0f5 !important; font-size: 0.95rem !important; padding: 10px 14px !important; }
-.stTextInput input::placeholder { color: #3a3f4a !important; }
-.stTextInput input:focus { border-color: #4d8eff !important; box-shadow: 0 0 0 3px rgba(77,142,255,0.15) !important; outline: none !important; }
-[data-baseweb="select"] > div { background: #1c1f27 !important; border: 1px solid #252830 !important; border-radius: 10px !important; }
-[data-baseweb="select"] span, [data-baseweb="select"] div, [data-baseweb="select"] input { color: #eef0f5 !important; }
-[data-baseweb="popover"], [data-baseweb="menu"] { background: #1c1f27 !important; border: 1px solid #252830 !important; border-radius: 10px !important; }
-[data-baseweb="option"] { background: #1c1f27 !important; color: #c4c8d4 !important; padding: 10px 14px !important; }
-[data-baseweb="option"]:hover, [data-baseweb="option"][aria-selected="true"] { background: #24273100 !important; color: #eef0f5 !important; }
-[data-testid="stSlider"] > div > div > div { background: #252830 !important; }
-.stSlider p { color: #eef0f5 !important; font-weight: 600 !important; }
-.stButton > button { background: #4d8eff !important; color: #ffffff !important; border: none !important; border-radius: 10px !important; font-size: 0.88rem !important; font-weight: 600 !important; padding: 11px 24px !important; transition: background 0.15s !important; width: 100% !important; }
-.stButton > button:hover { background: #3a7aef !important; }
-.stButton > button p, .stButton > button span, .stButton > button div { color: #ffffff !important; font-weight: 600 !important; }
-.stTabs [data-baseweb="tab-list"] { background: #1c1f27 !important; border-radius: 10px !important; padding: 4px !important; border: 1px solid #252830 !important; gap: 2px !important; }
-.stTabs [data-baseweb="tab"] { background: transparent !important; border-radius: 7px !important; padding: 7px 18px !important; font-size: 0.83rem !important; font-weight: 500 !important; color: #555a66 !important; }
-.stTabs [aria-selected="true"] { background: #24272e !important; color: #eef0f5 !important; }
-.stDataFrame { border-radius: 12px !important; overflow: hidden !important; }
-[data-testid="stDataFrame"] { border: 1px solid #252830 !important; border-radius: 12px !important; }
-[data-testid="stDataFrame"] th { background: #181b22 !important; color: #555a66 !important; font-size: 0.7rem !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: 0.06em !important; padding: 10px 12px !important; border-bottom: 1px solid #252830 !important; }
-[data-testid="stDataFrame"] td { background: #1c1f27 !important; color: #c4c8d4 !important; font-size: 0.84rem !important; padding: 9px 12px !important; border-bottom: 1px solid #202330 !important; }
-.stProgress > div > div > div { background: #4d8eff !important; border-radius: 4px !important; }
-.stProgress > div > div { background: #252830 !important; border-radius: 4px !important; }
-.stAlert { border-radius: 10px !important; }
-hr { border: none !important; border-top: 1px solid #252830 !important; margin: 1.5rem 0 !important; }
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #252830; border-radius: 3px; }
-.stRadio label { color: #c4c8d4 !important; font-size: 0.88rem !important; font-weight: 400 !important; text-transform: none !important; letter-spacing: 0 !important; }
-.stSpinner > div { border-top-color: #4d8eff !important; }
-/* Remove white borders on st.container(border=True) */
-[data-testid="stVerticalBlockBorderWrapper"] { border: 1px solid #252830 !important; border-radius: 14px !important; }
-/* Fix blue boxes - all text inside must be white */
-.stAlert p, .stAlert span, .stAlert div { color: #eef0f5 !important; }
-.stSuccess { background: rgba(52,199,89,0.1) !important; border: 1px solid rgba(52,199,89,0.3) !important; border-radius: 10px !important; }
-.stSuccess p, .stSuccess span { color: #34c759 !important; }
-.stInfo { background: rgba(77,142,255,0.1) !important; border: 1px solid rgba(77,142,255,0.3) !important; border-radius: 10px !important; }
-.stInfo p, .stInfo span { color: #4d8eff !important; }
-.stWarning { background: rgba(255,159,10,0.1) !important; border: 1px solid rgba(255,159,10,0.3) !important; border-radius: 10px !important; }
-.stWarning p, .stWarning span { color: #ff9f0a !important; }
-.stError { background: rgba(255,69,58,0.1) !important; border: 1px solid rgba(255,69,58,0.3) !important; border-radius: 10px !important; }
-.stError p, .stError span { color: #ff453a !important; }
-/* Button text always white */
-.stButton button, .stButton button *, .stDownloadButton button, .stDownloadButton button * { color: #ffffff !important; }
-/* Expander */
-[data-testid="stExpander"] { border: 1px solid #252830 !important; border-radius: 12px !important; background: #1c1f27 !important; }
-[data-testid="stExpander"] summary { color: #9096a8 !important; }
-[data-testid="stExpander"] summary:hover { color: #eef0f5 !important; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+*{font-family:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;box-sizing:border-box}
+.stApp,.stApp>div{background:#000000!important}
+.main .block-container{padding:1.5rem 1.8rem!important;max-width:1200px!important}
+section[data-testid="stSidebar"]{background:#1c1c1e!important;border-right:0.5px solid #2c2c2e!important}
+section[data-testid="stSidebar"] *{color:#ebebf5!important}
+section[data-testid="stSidebar"] .stCaption{color:#636366!important}
+h1{font-size:1.7rem!important;font-weight:700!important;letter-spacing:-0.03em!important;color:#ffffff!important}
+h2{font-size:1.1rem!important;font-weight:600!important;color:#ffffff!important}
+h3{font-size:0.95rem!important;font-weight:600!important;color:#ffffff!important}
+p,.stMarkdown p{color:#8e8e93!important;line-height:1.5!important}
+.stCaption{color:#48484a!important;font-size:0.75rem!important}
+[data-testid="metric-container"]{background:#1c1c1e!important;border:0.5px solid #2c2c2e!important;border-radius:12px!important;padding:14px 16px!important}
+[data-testid="metric-container"] label{color:#48484a!important;font-size:0.65rem!important;font-weight:600!important;text-transform:uppercase!important;letter-spacing:0.08em!important}
+[data-testid="stMetricValue"]{color:#ffffff!important;font-size:1.35rem!important;font-weight:600!important;letter-spacing:-0.02em!important}
+[data-testid="stMetricDelta"]{font-size:0.78rem!important;font-weight:500!important}
+[data-testid="stMetricDelta"] svg{display:none!important}
+.stTextInput input{background:#1c1c1e!important;border:0.5px solid #38383a!important;border-radius:10px!important;color:#ffffff!important;font-size:0.95rem!important;padding:10px 14px!important}
+.stTextInput input::placeholder{color:#3a3a3c!important}
+.stTextInput input:focus{border-color:#30d158!important;box-shadow:0 0 0 3px rgba(48,209,88,0.12)!important;outline:none!important}
+[data-baseweb="select"]>div{background:#1c1c1e!important;border:0.5px solid #38383a!important;border-radius:10px!important}
+[data-baseweb="select"] span,[data-baseweb="select"] div,[data-baseweb="select"] input{color:#ffffff!important}
+[data-baseweb="popover"],[data-baseweb="menu"]{background:#1c1c1e!important;border:0.5px solid #38383a!important;border-radius:10px!important}
+[data-baseweb="option"]{background:#1c1c1e!important;color:#ebebf5!important;padding:10px 14px!important}
+[data-baseweb="option"]:hover,[data-baseweb="option"][aria-selected="true"]{background:#2c2c2e!important;color:#ffffff!important}
+[data-testid="stSlider"]>div>div>div{background:#2c2c2e!important}
+.stSlider p{color:#ffffff!important;font-weight:600!important}
+.stButton>button{background:#1c1c1e!important;color:#ffffff!important;border:0.5px solid #38383a!important;border-radius:10px!important;font-size:0.85rem!important;font-weight:500!important;padding:9px 20px!important;transition:background 0.15s!important;width:100%!important}
+.stButton>button:hover{background:#2c2c2e!important}
+.stButton>button[kind="primary"]{background:#30d158!important;border:none!important;color:#000000!important;font-weight:600!important}
+.stButton>button[kind="primary"]:hover{background:#25a244!important}
+.stButton>button *{color:inherit!important}
+.stTabs [data-baseweb="tab-list"]{background:#1c1c1e!important;border-radius:10px!important;padding:3px!important;border:0.5px solid #2c2c2e!important;gap:2px!important}
+.stTabs [data-baseweb="tab"]{background:transparent!important;border-radius:7px!important;padding:6px 16px!important;font-size:0.82rem!important;font-weight:500!important;color:#48484a!important}
+.stTabs [aria-selected="true"]{background:#2c2c2e!important;color:#ffffff!important}
+[data-testid="stVerticalBlockBorderWrapper"]{border:0.5px solid #2c2c2e!important;border-radius:12px!important;background:#1c1c1e!important}
+.stDataFrame{border-radius:12px!important;overflow:hidden!important}
+[data-testid="stDataFrame"]{border:0.5px solid #2c2c2e!important;border-radius:12px!important}
+[data-testid="stDataFrame"] th{background:#1c1c1e!important;color:#48484a!important;font-size:0.68rem!important;font-weight:600!important;text-transform:uppercase!important;letter-spacing:0.06em!important;padding:9px 12px!important;border-bottom:0.5px solid #2c2c2e!important}
+[data-testid="stDataFrame"] td{background:#000000!important;color:#ebebf5!important;font-size:0.82rem!important;padding:8px 12px!important;border-bottom:0.5px solid #1c1c1e!important}
+.stProgress>div>div>div{background:#30d158!important;border-radius:2px!important}
+.stProgress>div>div{background:#2c2c2e!important;border-radius:2px!important}
+.stAlert{border-radius:10px!important;border:none!important}
+.stSuccess{background:rgba(48,209,88,0.12)!important}
+.stSuccess p,.stSuccess span{color:#30d158!important}
+.stInfo{background:rgba(10,132,255,0.12)!important}
+.stInfo p,.stInfo span{color:#0a84ff!important}
+.stWarning{background:rgba(255,159,10,0.12)!important}
+.stWarning p,.stWarning span{color:#ff9f0a!important}
+.stError{background:rgba(255,69,58,0.12)!important}
+.stError p,.stError span{color:#ff453a!important}
+hr{border:none!important;border-top:0.5px solid #2c2c2e!important;margin:1.2rem 0!important}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#38383a;border-radius:2px}
+.stRadio label{color:#ebebf5!important;font-size:0.85rem!important;font-weight:400!important;text-transform:none!important;letter-spacing:0!important}
+.stSpinner>div{border-top-color:#30d158!important}
+[data-testid="stExpander"]{border:0.5px solid #2c2c2e!important;border-radius:10px!important;background:#1c1c1e!important}
+[data-testid="stExpander"] summary{color:#8e8e93!important}
+[data-testid="stExpander"] summary:hover{color:#ffffff!important}
 </style>
 """, unsafe_allow_html=True)
+
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -432,7 +429,7 @@ hr { border: none !important; border-top: 1px solid #2a2d35 !important; margin: 
 """, unsafe_allow_html=True)
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("<div style='padding:6px 0 12px'><div style='font-size:1rem;font-weight:700;color:#eef0f5;letter-spacing:-0.02em'>Stock Analyzer</div><div style='font-size:0.7rem;color:#444;margin-top:2px;letter-spacing:0.04em'>Yahoo Finance · 15min delay</div></div>", unsafe_allow_html=True)
+    st.markdown("<div style='padding:6px 0 12px'><div style='font-size:1rem;font-weight:700;color:#ffffff;letter-spacing:-0.02em'>Stock Analyzer</div><div style='font-size:0.7rem;color:#444;margin-top:2px;letter-spacing:0.04em'>Yahoo Finance · 15min delay</div></div>", unsafe_allow_html=True)
     st.divider()
 
     page = st.radio(
@@ -566,16 +563,16 @@ if page == "🔍 Analisi Titolo":
 
             st.markdown(f"""
 <div style='padding:4px 0 16px'>
-    <div style='font-size:0.78rem;color:#555a66;font-weight:500;text-transform:uppercase;letter-spacing:0.06em'>{data['ticker']} · {data['sector']}</div>
-    <div style='font-size:0.95rem;color:#9096a8;margin:2px 0 8px'>{data['name']}</div>
+    <div style='font-size:0.78rem;color:#48484a;font-weight:500;text-transform:uppercase;letter-spacing:0.06em'>{data['ticker']} · {data['sector']}</div>
+    <div style='font-size:0.95rem;color:#8e8e93;margin:2px 0 8px'>{data['name']}</div>
     <div style='display:flex;align-items:baseline;gap:12px;flex-wrap:wrap'>
-        <span style='font-size:2.6rem;font-weight:700;color:#eef0f5;letter-spacing:-0.04em;line-height:1'>{price} {cur}</span>
+        <span style='font-size:2.6rem;font-weight:700;color:#ffffff;letter-spacing:-0.04em;line-height:1'>{price} {cur}</span>
         <span style='font-size:1rem;font-weight:500;color:{chg_color}'>{chg_str}</span>
     </div>
     <div style='display:flex;align-items:center;gap:16px;margin-top:10px;flex-wrap:wrap'>
         <span style='background:{sig_color}22;border:1px solid {sig_color}55;border-radius:6px;padding:3px 10px;font-size:0.8rem;font-weight:600;color:{sig_color}'>{data['signal']}</span>
-        <span style='font-size:0.8rem;color:#555a66'>Score {score}/100</span>
-        <div style='flex:1;max-width:120px;height:3px;background:#1c1f27;border-radius:2px'>
+        <span style='font-size:0.8rem;color:#48484a'>Score {score}/100</span>
+        <div style='flex:1;max-width:120px;height:3px;background:#1c1c1e;border-radius:2px'>
             <div style='height:3px;width:{score}%;background:{sig_color};border-radius:2px'></div>
         </div>
     </div>
@@ -606,7 +603,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     ai_clean = _re.sub(r'\*\*(.*?)\*\*', r'\1', ai_text).strip()
                     _ac, _bc = st.columns([11, 1])
                     with _ac:
-                        st.markdown(f"<div style='background:#1c1f27;border-left:3px solid {sig_color};padding:13px 16px;border-radius:0 10px 10px 0;font-size:0.84rem;color:#c4c8d4;line-height:1.7'>{ai_clean.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='background:#1c1c1e;border-left:3px solid {sig_color};padding:13px 16px;border-radius:0 10px 10px 0;font-size:0.84rem;color:#ebebf5;line-height:1.7'>{ai_clean.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
                     with _bc:
                         if st.button('↺', key='rigenera_ai', help='Rigenera analisi AI'):
                             del st.session_state[ai_cache_key]
@@ -624,115 +621,125 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 cur = data['currency']
 
                 st.markdown(f"""
-<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#252830;border-radius:12px;overflow:hidden;margin-bottom:12px'>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:2px'>{fmt(data['entry_price'],cur)}</div>
+<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c2c2e;border-radius:12px;overflow:hidden;margin-bottom:12px'>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#ffffff;margin-top:2px'>{fmt(data['entry_price'],cur)}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
         <div style='font-size:0.95rem;font-weight:600;color:#ff9f0a;margin-top:2px'>{fmt(data['target_price'],cur)}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
         <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:2px'>{fmt(data['stop_loss'],cur)}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#eef0f5;margin-top:2px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
+        <div style='font-size:0.95rem;font-weight:600;color:#ffffff;margin-top:2px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
         <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{upside}%' if upside else '—'}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
         <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{net_g}%' if net_g else '—'}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
         <div style='font-size:0.95rem;font-weight:600;color:#bf5af2;margin-top:2px'>{f'+{ann_r}%' if ann_r else '—'}</div>
     </div>
-    <div style='background:#13151a;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#555a66;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
-        <div style='font-size:0.8rem;font-weight:600;color:#4c8eff;margin-top:2px'>{t_label[:22] if t_label else '—'}</div>
+    <div style='background:#000000;padding:11px 14px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
+        <div style='font-size:0.8rem;font-weight:600;color:#0a84ff;margin-top:2px'>{t_label[:22] if t_label else '—'}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-                # Period selector
-                per_sel = st.radio("", ["1M","3M","6M","1Y","2Y"], index=3, horizontal=True, label_visibility="collapsed")
-                per_map = {"1M":"1mo","3M":"3mo","6M":"6mo","1Y":"1y","2Y":"2y"}
+                # Period selector — Apple style pill
+                per_sel = st.radio("", ["1M","3M","6M","1A","2A","5A"], index=3, horizontal=True, label_visibility="collapsed")
                 hist = data["hist"]
                 import pandas as pd
-                cutoff_days = {"1M":21,"3M":63,"6M":126,"1Y":252,"2Y":504}
+                cutoff_days = {"1M":21,"3M":63,"6M":126,"1A":252,"2A":504,"5A":1260}
                 n_days = cutoff_days.get(per_sel, 252)
                 hist_view = hist.tail(n_days)
 
-                # Apple-style: single line chart for main price
                 close_vals = hist_view["Close"].values
-                is_up = close_vals[-1] >= close_vals[0]
+                is_up = len(close_vals) > 0 and close_vals[-1] >= close_vals[0]
                 line_color = "#30d158" if is_up else "#ff453a"
-                fill_color = "rgba(48,209,88,0.08)" if is_up else "rgba(255,69,58,0.08)"
+                # Apple uses deep green fill — linear gradient approximated with low opacity
+                fill_color = "rgba(48,209,88,0.15)" if is_up else "rgba(255,69,58,0.12)"
 
                 fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                    row_heights=[0.78, 0.22], vertical_spacing=0.02)
+                    row_heights=[0.82, 0.18], vertical_spacing=0.0,
+                    specs=[[{"type":"scatter"}],[{"type":"bar"}]])
 
-                # Main price line
+                # Main price line — Apple style: smooth, bright green, filled
                 fig.add_trace(go.Scatter(
                     x=hist_view.index, y=hist_view["Close"],
                     mode="lines", name="",
-                    line=dict(color=line_color, width=2),
+                    line=dict(color=line_color, width=2.5, shape="spline", smoothing=0.3),
                     fill="tozeroy", fillcolor=fill_color,
-                    hovertemplate="%{y:.2f}<extra></extra>",
+                    hovertemplate="<b>%{y:.2f}</b><br>%{x|%d %b %Y}<extra></extra>",
                 ), row=1, col=1)
 
-                # MA50 subtle
-                if "MA50" in hist_view.columns:
-                    fig.add_trace(go.Scatter(x=hist_view.index, y=hist_view["MA50"],
-                        mode="lines", name="MA50",
-                        line=dict(color="#4c8eff", width=1, dash="dot"),
-                        hovertemplate="%{y:.2f}<extra></extra>",
-                    ), row=1, col=1)
-
-                # Volume bars
-                vol_colors = ["#30d158" if c >= o else "#ff453a"
+                # Volume — tiny bars at bottom like Apple
+                vol_colors = ["rgba(48,209,88,0.5)" if c >= o else "rgba(255,69,58,0.5)"
                     for c, o in zip(hist_view["Close"], hist_view["Open"])]
-                fig.add_trace(go.Bar(x=hist_view.index, y=hist_view["Volume"],
-                    marker_color=vol_colors, opacity=0.4, name="",
+                fig.add_trace(go.Bar(
+                    x=hist_view.index, y=hist_view["Volume"],
+                    marker_color=vol_colors, name="",
                     hovertemplate="%{y:,.0f}<extra></extra>",
                 ), row=2, col=1)
 
-                # Target line
+                # Target & Stop lines
                 if data.get("target_price"):
                     fig.add_hline(y=data["target_price"], line_dash="dot",
-                        line_color="#ff9f0a", line_width=1,
-                        annotation_text=f"Target {data['target_price']}",
-                        annotation_font_color="#ff9f0a", annotation_font_size=10,
-                        row=1, col=1)
+                        line_color="rgba(255,159,10,0.6)", line_width=1,
+                        annotation_text=f"  {data['target_price']}",
+                        annotation_font_color="#ff9f0a", annotation_font_size=11,
+                        annotation_position="right", row=1, col=1)
                 if data.get("stop_loss"):
                     fig.add_hline(y=data["stop_loss"], line_dash="dot",
-                        line_color="#ff453a", line_width=1,
-                        annotation_text=f"Stop {data['stop_loss']}",
-                        annotation_font_color="#ff453a", annotation_font_size=10,
-                        row=1, col=1)
+                        line_color="rgba(255,69,58,0.5)", line_width=1,
+                        annotation_text=f"  {data['stop_loss']}",
+                        annotation_font_color="#ff453a", annotation_font_size=11,
+                        annotation_position="right", row=1, col=1)
+
+                # Y-axis tick values (Apple shows 3-4 clean values)
+                if len(close_vals) > 0:
+                    ymin, ymax = float(hist_view["Close"].min()), float(hist_view["Close"].max())
+                    yrng = ymax - ymin
+                    import numpy as np
+                    tick_vals = [round(ymin + yrng*t, 2) for t in [0.1, 0.4, 0.7, 0.95]]
 
                 fig.update_layout(
-                    height=420, showlegend=False,
-                    paper_bgcolor="#13151a", plot_bgcolor="#13151a",
-                    margin=dict(l=0, r=48, t=8, b=0),
-                    font=dict(family="Inter,-apple-system,sans-serif", size=11, color="#555a66"),
-                    xaxis=dict(showgrid=False, zeroline=False, showline=False,
-                        tickfont=dict(size=10, color="#555a66"), tickformat="%b %y"),
-                    yaxis=dict(showgrid=True, gridcolor="#1c1f27", gridwidth=0.5,
-                        zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66"),
-                        side="right"),
-                    xaxis2=dict(showgrid=False, zeroline=False, showline=False,
-                        tickfont=dict(size=10, color="#555a66"), tickformat="%b %y"),
-                    yaxis2=dict(showgrid=False, zeroline=False, showline=False,
-                        tickfont=dict(size=9, color="#555a66"), side="right"),
-                    hoverlabel=dict(bgcolor="#1c1f27", bordercolor="#252830",
-                        font=dict(size=12, color="#eef0f5")),
+                    height=400, showlegend=False,
+                    paper_bgcolor="#000000", plot_bgcolor="#000000",
+                    margin=dict(l=0, r=52, t=4, b=0),
+                    font=dict(family="-apple-system,Inter,sans-serif", size=11, color="#636366"),
+                    xaxis=dict(
+                        showgrid=False, zeroline=False, showline=False,
+                        tickfont=dict(size=11, color="#636366"),
+                        tickformat="%Y" if n_days > 300 else "%b '%y",
+                        nticks=5,
+                    ),
+                    yaxis=dict(
+                        showgrid=True, gridcolor="#1c1c1e", gridwidth=0.5,
+                        zeroline=False, showline=False,
+                        tickfont=dict(size=11, color="#8e8e93"),
+                        side="right",
+                        tickvals=tick_vals if len(close_vals) > 0 else None,
+                        tickformat=",.0f",
+                    ),
+                    xaxis2=dict(showgrid=False, zeroline=False, showline=False, showticklabels=False),
+                    yaxis2=dict(showgrid=False, zeroline=False, showline=False, showticklabels=False),
+                    hoverlabel=dict(
+                        bgcolor="#1c1c1e", bordercolor="#38383a",
+                        font=dict(size=13, color="#ffffff", family="-apple-system,Inter,sans-serif")
+                    ),
+                    hovermode="x unified",
                 )
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
@@ -784,7 +791,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 st.markdown(f"""
 <div style='background:#1e2128;border-radius:12px;padding:20px;border:1px solid {sc_color};margin-bottom:20px'>
     <span style='font-size:1.4rem;font-weight:800;color:{sc_color}'>{sent["overall"]}</span>
-    <span style='color:#6b6e77;margin-left:16px'>Score sentiment: <b style='color:#f5f5f7'>{sc}/100</b></span>
+    <span style='color:#636366;margin-left:16px'>Score sentiment: <b style='color:#f5f5f7'>{sc}/100</b></span>
     <div style='background:#2c2c2e;border-radius:4px;height:8px;margin-top:10px'>
         <div style='background:{sc_color};width:{sc}%;height:5px;border-radius:4px'></div>
     </div>
@@ -935,7 +942,7 @@ elif page == "🎯 Screener Scontati":
                     # Header row
                     h1, h2 = st.columns([2, 1])
                     with h1:
-                        st.markdown(f"### {sig_icon} {ticker} &nbsp; <span style='font-size:0.85rem;color:#9096a8;font-weight:400'>{nome}</span>", unsafe_allow_html=True)
+                        st.markdown(f"### {sig_icon} {ticker} &nbsp; <span style='font-size:0.85rem;color:#8e8e93;font-weight:400'>{nome}</span>", unsafe_allow_html=True)
                         st.caption(f"{settore}  ·  Score: **{score_val}/100**  ·  {sig}")
                     with h2:
                         if upside and upside > 0:
@@ -994,7 +1001,7 @@ elif page == "🌡️ Sentiment Mercato":
                 <div style='background:#2c2c2e;border-radius:4px;height:10px;margin-top:16px'>
                     <div style='background:{color};width:{score}%;height:10px;border-radius:4px'></div>
                 </div>
-                <div style='display:flex;justify-content:space-between;color:#6b6e77;font-size:0.75rem;margin-top:4px'>
+                <div style='display:flex;justify-content:space-between;color:#636366;font-size:0.75rem;margin-top:4px'>
                     <span>0 — Paura estrema</span><span>100 — Avidità estrema</span>
                 </div>
             </div>
@@ -1012,7 +1019,7 @@ elif page == "🌡️ Sentiment Mercato":
             <div style='background:#1e2128;border-radius:12px;padding:24px;text-align:center;border:1px solid {vcolor}'>
                 <div style='font-size:3rem;font-weight:900;color:{vcolor}'>{vix}</div>
                 <div style='font-size:1.1rem;color:#f5f5f7;margin-top:8px'>{macro["vix_label"]}</div>
-                <div style='color:#6b6e77;font-size:0.85rem;margin-top:12px'>
+                <div style='color:#636366;font-size:0.85rem;margin-top:12px'>
                     VIX &lt;15 = calmo · 15–25 = moderato · &gt;25 = nervoso
                 </div>
             </div>
@@ -1038,7 +1045,7 @@ elif page == "🌡️ Sentiment Mercato":
                 <div style='background:#1e2128;border-radius:10px;padding:16px;border:1px solid {sc};margin-bottom:12px'>
                     <b style='color:#f5f5f7'>{t}</b><br>
                     <span style='color:{sc};font-size:1.1rem'>{s['label']}</span>
-                    <span style='color:#6b6e77;font-size:0.85rem'> ({score_val})</span>
+                    <span style='color:#636366;font-size:0.85rem'> ({score_val})</span>
                 </div>
                 """, unsafe_allow_html=True)
                 for art in s["articles"][:3]:
