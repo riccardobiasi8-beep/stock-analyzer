@@ -6,14 +6,15 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
     """Fetch all data for a given ticker."""
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period=period)
+        # Always fetch 2y to have enough data for MA200, RSI, Bollinger
+        hist = stock.history(period="2y")
         info = stock.info
 
         if hist.empty:
             return {"error": f"Nessun dato trovato per {ticker}"}
 
         # --- Technical indicators ---
-        close = hist["Close"]
+        close = hist["Close"].astype(float)
 
         # Moving averages
         hist["MA20"] = close.rolling(20).mean()
@@ -50,14 +51,21 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         if current_price is None:
             current_price = float(close.iloc[-1])
         current_price = float(current_price)
-        rsi_val = float(hist["RSI"].iloc[-1])
-        macd_val = float(hist["MACD"].iloc[-1])
-        macd_sig = float(hist["MACD_signal"].iloc[-1])
-        ma20 = float(hist["MA20"].iloc[-1]) if not pd.isna(hist["MA20"].iloc[-1]) else None
-        ma50 = float(hist["MA50"].iloc[-1]) if not pd.isna(hist["MA50"].iloc[-1]) else None
-        ma200 = float(hist["MA200"].iloc[-1]) if not pd.isna(hist["MA200"].iloc[-1]) else None
-        bb_upper = float(hist["BB_upper"].iloc[-1])
-        bb_lower = float(hist["BB_lower"].iloc[-1])
+        def safe_float(val):
+            try:
+                v = float(val)
+                return None if (v != v) else v  # NaN check
+            except:
+                return None
+
+        rsi_val = safe_float(hist["RSI"].iloc[-1]) or 50.0
+        macd_val = safe_float(hist["MACD"].iloc[-1]) or 0.0
+        macd_sig = safe_float(hist["MACD_signal"].iloc[-1]) or 0.0
+        ma20 = safe_float(hist["MA20"].iloc[-1])
+        ma50 = safe_float(hist["MA50"].iloc[-1])
+        ma200 = safe_float(hist["MA200"].iloc[-1])
+        bb_upper = safe_float(hist["BB_upper"].iloc[-1]) or current_price * 1.02
+        bb_lower = safe_float(hist["BB_lower"].iloc[-1]) or current_price * 0.98
 
         # --- Fundamentals ---
         pe = info.get("trailingPE", None)
