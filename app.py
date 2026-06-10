@@ -104,147 +104,161 @@ if "screener_df" not in st.session_state:
 if "screener_market" not in st.session_state:
     st.session_state.screener_market = ""
 
-# ── Custom CSS — Apple-inspired design ────────────────────────────────────────
+# ── Custom CSS — Premium Finance Dark ─────────────────────────────────────────
 st.markdown("""
 <style>
-    /* ── Base & fonts ── */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
-    }
+* { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; box-sizing: border-box; }
 
-    /* ── Background ── */
-    .stApp { background: #000000; }
-    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1100px; }
-    section[data-testid="stSidebar"] { background: #111111 !important; border-right: 0.5px solid #222; }
+/* ── Background ── */
+.stApp, .stApp > div { background: #0a0a0a !important; }
+.main .block-container { padding: 2rem 2.5rem !important; max-width: 1200px !important; }
 
-    /* ── Typography ── */
-    h1 { font-size: 2.2rem !important; font-weight: 600 !important; letter-spacing: -0.03em !important; color: #f5f5f7 !important; }
-    h2 { font-size: 1.4rem !important; font-weight: 500 !important; letter-spacing: -0.02em !important; color: #f5f5f7 !important; }
-    h3 { font-size: 1.1rem !important; font-weight: 500 !important; color: #f5f5f7 !important; }
-    p, span, div, label { color: #a1a1a6; }
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] { background: #111111 !important; border-right: 1px solid #1f1f1f !important; }
+section[data-testid="stSidebar"] * { color: #e0e0e0 !important; }
+section[data-testid="stSidebar"] .stCaption { color: #555 !important; font-size: 0.75rem !important; }
 
-    /* ── Metrics ── */
-    [data-testid="metric-container"] {
-        background: #1c1c1e !important;
-        border-radius: 16px !important;
-        padding: 20px !important;
-        border: 0.5px solid #2c2c2e !important;
-    }
-    [data-testid="metric-container"] label {
-        font-size: 0.72rem !important;
-        font-weight: 500 !important;
-        letter-spacing: 0.06em !important;
-        text-transform: uppercase !important;
-        color: #636366 !important;
-    }
-    [data-testid="metric-container"] [data-testid="stMetricValue"] {
-        font-size: 1.6rem !important;
-        font-weight: 600 !important;
-        color: #f5f5f7 !important;
-        letter-spacing: -0.02em !important;
-    }
-    [data-testid="stMetricDelta"] { font-size: 0.85rem !important; font-weight: 500 !important; }
+/* ── Typography ── */
+h1 { font-size: 2rem !important; font-weight: 700 !important; letter-spacing: -0.04em !important; color: #ffffff !important; margin-bottom: 0.25rem !important; }
+h2 { font-size: 1.25rem !important; font-weight: 600 !important; letter-spacing: -0.02em !important; color: #ffffff !important; }
+h3 { font-size: 1rem !important; font-weight: 600 !important; color: #ffffff !important; }
+p { color: #8a8a8e !important; line-height: 1.6 !important; }
+.stCaption { color: #555 !important; font-size: 0.78rem !important; }
+label { color: #8a8a8e !important; font-size: 0.8rem !important; font-weight: 500 !important; text-transform: uppercase !important; letter-spacing: 0.05em !important; }
 
-    /* ── Input & select ── */
-    input[type="text"], .stTextInput input, .stSelectbox select {
-        background: #1c1c1e !important;
-        border: 0.5px solid #38383a !important;
-        border-radius: 12px !important;
-        color: #f5f5f7 !important;
-        padding: 12px 16px !important;
-        font-size: 1rem !important;
-    }
-    input[type="text"]:focus { border-color: #0a84ff !important; box-shadow: 0 0 0 3px rgba(10,132,255,0.15) !important; }
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: #141414 !important;
+    border: 1px solid #1f1f1f !important;
+    border-radius: 14px !important;
+    padding: 18px 20px !important;
+    transition: border-color 0.2s !important;
+}
+[data-testid="metric-container"]:hover { border-color: #2a2a2a !important; }
+[data-testid="metric-container"] label {
+    color: #555 !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+}
+[data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-size: 1.5rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.025em !important;
+}
+[data-testid="stMetricDelta"] { font-size: 0.82rem !important; font-weight: 500 !important; }
+[data-testid="stMetricDelta"] svg { display: none !important; }
 
-    /* ── Buttons ── */
-    .stButton > button {
-        background: #0a84ff !important;
-        color: #ffffff !important;
-        border: none !important;
-        border-radius: 980px !important;
-        font-weight: 500 !important;
-        font-size: 0.95rem !important;
-        padding: 10px 24px !important;
-        letter-spacing: -0.01em !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton > button:hover { background: #0071e3 !important; transform: scale(0.99) !important; }
+/* ── Input ── */
+.stTextInput input {
+    background: #141414 !important;
+    border: 1px solid #2a2a2a !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+    font-size: 1rem !important;
+    padding: 12px 16px !important;
+    caret-color: #0a84ff !important;
+}
+.stTextInput input::placeholder { color: #3a3a3a !important; }
+.stTextInput input:focus { border-color: #0a84ff !important; outline: none !important; box-shadow: 0 0 0 3px rgba(10,132,255,0.12) !important; }
 
-    /* ── Tabs ── */
-    .stTabs [data-baseweb="tab-list"] {
-        background: #1c1c1e !important;
-        border-radius: 12px !important;
-        padding: 4px !important;
-        gap: 2px !important;
-        border: none !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 9px !important;
-        padding: 8px 18px !important;
-        font-size: 0.88rem !important;
-        font-weight: 500 !important;
-        color: #8e8e93 !important;
-        background: transparent !important;
-    }
-    .stTabs [aria-selected="true"] {
-        background: #2c2c2e !important;
-        color: #f5f5f7 !important;
-    }
+/* ── Selectbox ── */
+[data-baseweb="select"] > div {
+    background: #141414 !important;
+    border: 1px solid #2a2a2a !important;
+    border-radius: 12px !important;
+    color: #ffffff !important;
+}
+[data-baseweb="select"] span, [data-baseweb="select"] div { color: #ffffff !important; }
+[data-baseweb="popover"] { background: #1a1a1a !important; border: 1px solid #2a2a2a !important; border-radius: 12px !important; }
+[data-baseweb="menu"] { background: #1a1a1a !important; }
+[data-baseweb="option"] { background: #1a1a1a !important; color: #ffffff !important; }
+[data-baseweb="option"]:hover { background: #252525 !important; }
 
-    /* ── Sidebar ── */
-    .stRadio label { color: #a1a1a6 !important; font-size: 0.9rem !important; }
-    .stRadio [data-baseweb="radio"] { gap: 8px !important; }
-    [data-testid="stSidebarContent"] { padding: 1.5rem 1rem !important; }
+/* ── Slider ── */
+[data-testid="stSlider"] > div > div > div { background: #1f1f1f !important; }
+[data-testid="stSlider"] [data-baseweb="slider"] div[role="slider"] { background: #0a84ff !important; border: 2px solid #0a84ff !important; }
+[data-testid="stSlider"] div[data-testid="stTickBarMin"],
+[data-testid="stSlider"] div[data-testid="stTickBarMax"] { color: #555 !important; }
+.stSlider p { color: #ffffff !important; font-weight: 600 !important; }
 
-    /* ── Dataframe ── */
-    [data-testid="stDataFrame"] { border-radius: 16px !important; overflow: hidden !important; }
-    .stDataFrame { background: #1c1c1e !important; }
+/* ── Button ── */
+.stButton > button {
+    background: #0a84ff !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    padding: 12px 28px !important;
+    letter-spacing: -0.01em !important;
+    transition: background 0.15s, transform 0.1s !important;
+    width: 100% !important;
+}
+.stButton > button:hover { background: #0071e3 !important; transform: scale(0.995) !important; }
+.stButton > button:active { transform: scale(0.98) !important; }
 
-    /* ── Alerts & info ── */
-    .stAlert { border-radius: 12px !important; border: none !important; }
-    .stInfo { background: rgba(10,132,255,0.1) !important; color: #0a84ff !important; }
-    .stSuccess { background: rgba(48,209,88,0.1) !important; }
-    .stWarning { background: rgba(255,159,10,0.1) !important; }
-    .stError { background: rgba(255,69,58,0.1) !important; }
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    background: #141414 !important;
+    border-radius: 12px !important;
+    padding: 4px !important;
+    border: 1px solid #1f1f1f !important;
+    gap: 2px !important;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    border-radius: 9px !important;
+    padding: 8px 20px !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    color: #555 !important;
+    border: none !important;
+    transition: all 0.15s !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #252525 !important;
+    color: #ffffff !important;
+}
 
-    /* ── Divider ── */
-    hr { border-color: #2c2c2e !important; margin: 1.5rem 0 !important; }
+/* ── Progress / spinner ── */
+.stProgress > div > div > div { background: #0a84ff !important; }
+.stProgress > div > div { background: #1f1f1f !important; border-radius: 4px !important; }
 
-    /* ── Spinner ── */
-    .stSpinner > div { border-top-color: #0a84ff !important; }
+/* ── Info / success / warning / error ── */
+.stAlert { border-radius: 12px !important; border: none !important; }
+[data-testid="stNotification"] { border-radius: 12px !important; }
+div[data-testid="stMarkdownContainer"] p { color: #8a8a8e !important; }
 
-    /* ── Progress bar ── */
-    .stProgress > div > div { background: #0a84ff !important; border-radius: 4px !important; }
-    .stProgress { background: #2c2c2e !important; border-radius: 4px !important; }
+/* ── Dataframe ── */
+.stDataFrame { border-radius: 14px !important; overflow: hidden !important; border: 1px solid #1f1f1f !important; }
+[data-testid="stDataFrame"] th { background: #141414 !important; color: #555 !important; font-size: 0.72rem !important; text-transform: uppercase !important; letter-spacing: 0.06em !important; }
+[data-testid="stDataFrame"] td { background: #0d0d0d !important; color: #e0e0e0 !important; font-size: 0.85rem !important; }
 
-    /* ── Plotly charts ── */
-    .js-plotly-plot { border-radius: 16px !important; overflow: hidden !important; }
+/* ── Divider ── */
+hr { border: none !important; border-top: 1px solid #1f1f1f !important; margin: 1.5rem 0 !important; }
 
-    /* ── Selectbox ── */
-    [data-baseweb="select"] > div {
-        background: #1c1c1e !important;
-        border: 0.5px solid #38383a !important;
-        border-radius: 12px !important;
-    }
-    [data-baseweb="select"] span { color: #f5f5f7 !important; }
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
 
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #38383a; border-radius: 3px; }
+/* ── Radio ── */
+.stRadio label { color: #e0e0e0 !important; font-size: 0.9rem !important; font-weight: 400 !important; text-transform: none !important; letter-spacing: 0 !important; }
+[data-testid="stRadio"] > div > label { padding: 8px 12px !important; border-radius: 8px !important; }
 
-    /* ── Caption & small text ── */
-    .stCaption, small { color: #636366 !important; font-size: 0.78rem !important; }
-    .stMarkdown p { color: #a1a1a6 !important; line-height: 1.6 !important; }
+/* ── Spinner ── */
+.stSpinner > div { border-top-color: #0a84ff !important; }
 </style>
 """, unsafe_allow_html=True)
-
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("<p style='font-size:1.2rem;font-weight:600;color:#f5f5f7;letter-spacing:-0.02em;margin-bottom:4px'>Stock Analyzer</p>", unsafe_allow_html=True)
-    st.caption("Dati ~15 min delay · Yahoo Finance")
+    st.markdown("<div style='padding:6px 0 12px'><div style='font-size:1rem;font-weight:700;color:#fff;letter-spacing:-0.02em'>Stock Analyzer</div><div style='font-size:0.7rem;color:#444;margin-top:2px;letter-spacing:0.04em'>Yahoo Finance · 15min delay</div></div>", unsafe_allow_html=True)
     st.divider()
 
     page = st.radio(
@@ -381,20 +395,20 @@ if page == "🔍 Analisi Titolo":
                 ann = data.get("annualized_return")
                 net = data.get("upside_net_pct")
                 st.markdown(f"""
-<div style='background:#1c1c1e;border-radius:10px;padding:16px;margin:8px 0;display:flex;gap:32px;flex-wrap:wrap;border:1px solid #2c2c2e'>
+<div style='background:#141414;border-radius:10px;padding:16px;margin:8px 0;display:flex;gap:32px;flex-wrap:wrap;border:1px solid #1f1f1f'>
     <div>
-        <div style='color:#636366;font-size:0.78rem'>⏱ Tempo stimato al target</div>
+        <div style='color:#555555;font-size:0.78rem'>⏱ Tempo stimato al target</div>
         <div style='color:{tc_color};font-weight:700;font-size:1.05rem'>{data.get("time_label","N/A")}</div>
     </div>
     <div>
-        <div style='color:#636366;font-size:0.78rem'>📈 Guadagno lordo</div>
+        <div style='color:#555555;font-size:0.78rem'>📈 Guadagno lordo</div>
         <div style='color:#30d158;font-weight:700;font-size:1.05rem'>+{data['upside_pct']}%</div>
     </div>
     <div>
-        <div style='color:#636366;font-size:0.78rem'>💶 Guadagno netto (−26% tasse IT)</div>
+        <div style='color:#555555;font-size:0.78rem'>💶 Guadagno netto (−26% tasse IT)</div>
         <div style='color:#30d158;font-weight:700;font-size:1.05rem'>+{net}%</div>
     </div>
-    {'<div><div style="color:#636366;font-size:0.78rem">📊 Rendimento annualizzato</div><div style="color:#bf5af2;font-weight:700;font-size:1.05rem">+' + str(ann) + '% /anno</div></div>' if ann else ''}
+    {'<div><div style="color:#555555;font-size:0.78rem">📊 Rendimento annualizzato</div><div style="color:#bf5af2;font-weight:700;font-size:1.05rem">+' + str(ann) + '% /anno</div></div>' if ann else ''}
 </div>
 """, unsafe_allow_html=True)
 
@@ -402,11 +416,11 @@ if page == "🔍 Analisi Titolo":
             score = data["score"]
             signal_color = "#30d158" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
             st.markdown(f"""
-            <div style='background:#1c1c1e;border-radius:12px;padding:20px;margin:16px 0;border:1px solid {signal_color}'>
+            <div style='background:#141414;border-radius:14px;padding:22px 24px;margin:14px 0;border:1px solid {signal_color}44'>
                 <span style='font-size:1.6rem;font-weight:800;color:{signal_color}'>{data['signal']}</span>
-                <span style='color:#636366;margin-left:20px'>Score composito: <b style='color:#f5f5f7'>{score}/100</b></span>
+                <span style='color:#555555;margin-left:20px'>Score composito: <b style='color:#f5f5f7'>{score}/100</b></span>
                 <div style='background:#2c2c2e;border-radius:4px;height:8px;margin-top:10px'>
-                    <div style='background:{signal_color};width:{score}%;height:8px;border-radius:4px'></div>
+                    <div style='background:{signal_color};width:{score}%;height:5px;border-radius:4px'></div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -509,11 +523,11 @@ if page == "🔍 Analisi Titolo":
                 sc = sent["score"]
                 sc_color = "#30d158" if sc >= 65 else ("#ff9f0a" if sc >= 45 else "#ff453a")
                 st.markdown(f"""
-<div style='background:#1c1c1e;border-radius:12px;padding:20px;border:1px solid {sc_color};margin-bottom:20px'>
+<div style='background:#141414;border-radius:12px;padding:20px;border:1px solid {sc_color};margin-bottom:20px'>
     <span style='font-size:1.4rem;font-weight:800;color:{sc_color}'>{sent["overall"]}</span>
-    <span style='color:#636366;margin-left:16px'>Score sentiment: <b style='color:#f5f5f7'>{sc}/100</b></span>
+    <span style='color:#555555;margin-left:16px'>Score sentiment: <b style='color:#f5f5f7'>{sc}/100</b></span>
     <div style='background:#2c2c2e;border-radius:4px;height:8px;margin-top:10px'>
-        <div style='background:{sc_color};width:{sc}%;height:8px;border-radius:4px'></div>
+        <div style='background:{sc_color};width:{sc}%;height:5px;border-radius:4px'></div>
     </div>
 </div>""", unsafe_allow_html=True)
 
@@ -650,7 +664,7 @@ Sii diretto e pratico."""
                         ai_text = result["choices"][0]["message"]["content"]
                         signal_color = "#30d158" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
                         st.markdown(f"""
-<div style='background:#1c1c1e;border-radius:12px;padding:24px;border:1px solid {signal_color};margin-top:8px;color:#f5f5f7;line-height:1.7'>
+<div style='background:#141414;border-radius:12px;padding:24px;border:1px solid {signal_color}44;margin-top:8px;color:#f5f5f7;line-height:1.7'>
 {ai_text.replace(chr(10), '<br>')}
 </div>
 """, unsafe_allow_html=True)
@@ -754,13 +768,13 @@ elif page == "🌡️ Sentiment Mercato":
             else: color = "#30d158"; emoji = "🤑 Extreme Greed"
 
             st.markdown(f"""
-            <div style='background:#1c1c1e;border-radius:12px;padding:24px;text-align:center;border:1px solid {color}'>
+            <div style='background:#141414;border-radius:12px;padding:24px;text-align:center;border:1px solid {color}'>
                 <div style='font-size:3rem;font-weight:900;color:{color}'>{score}</div>
                 <div style='font-size:1.2rem;color:#f5f5f7;margin-top:8px'>{emoji}</div>
                 <div style='background:#2c2c2e;border-radius:4px;height:10px;margin-top:16px'>
                     <div style='background:{color};width:{score}%;height:10px;border-radius:4px'></div>
                 </div>
-                <div style='display:flex;justify-content:space-between;color:#636366;font-size:0.75rem;margin-top:4px'>
+                <div style='display:flex;justify-content:space-between;color:#555555;font-size:0.75rem;margin-top:4px'>
                     <span>0 — Paura estrema</span><span>100 — Avidità estrema</span>
                 </div>
             </div>
@@ -775,10 +789,10 @@ elif page == "🌡️ Sentiment Mercato":
             vix = macro["vix"]
             vcolor = "#30d158" if vix < 15 else ("#ff9f0a" if vix < 25 else "#ff453a")
             st.markdown(f"""
-            <div style='background:#1c1c1e;border-radius:12px;padding:24px;text-align:center;border:1px solid {vcolor}'>
+            <div style='background:#141414;border-radius:12px;padding:24px;text-align:center;border:1px solid {vcolor}'>
                 <div style='font-size:3rem;font-weight:900;color:{vcolor}'>{vix}</div>
                 <div style='font-size:1.1rem;color:#f5f5f7;margin-top:8px'>{macro["vix_label"]}</div>
-                <div style='color:#636366;font-size:0.85rem;margin-top:12px'>
+                <div style='color:#555555;font-size:0.85rem;margin-top:12px'>
                     VIX &lt;15 = calmo · 15–25 = moderato · &gt;25 = nervoso
                 </div>
             </div>
@@ -801,10 +815,10 @@ elif page == "🌡️ Sentiment Mercato":
                 score_val = s["score"]
                 sc = "#30d158" if score_val > 0.05 else ("#ff453a" if score_val < -0.05 else "#636366")
                 st.markdown(f"""
-                <div style='background:#1c1c1e;border-radius:10px;padding:16px;border:1px solid {sc};margin-bottom:12px'>
+                <div style='background:#141414;border-radius:10px;padding:16px;border:1px solid {sc};margin-bottom:12px'>
                     <b style='color:#f5f5f7'>{t}</b><br>
                     <span style='color:{sc};font-size:1.1rem'>{s['label']}</span>
-                    <span style='color:#636366;font-size:0.85rem'> ({score_val})</span>
+                    <span style='color:#555555;font-size:0.85rem'> ({score_val})</span>
                 </div>
                 """, unsafe_allow_html=True)
                 for art in s["articles"][:3]:
