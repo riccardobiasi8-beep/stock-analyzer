@@ -127,86 +127,128 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         if roe and abs(roe) > 5: roe = None  # >500% ROE is a data error
         if debt_equity and debt_equity < 0: debt_equity = None
 
-        # --- DCF Fair Value (simplified, capped) ---
+        # ══════════════════════════════════════════════════════════════════
+        # FAIR VALUE — 3 PILASTRI PROFESSIONALI
+        # ══════════════════════════════════════════════════════════════════
+
+        eps = info.get("trailingEps")
+        forward_eps = info.get("forwardEps") or eps
+        analyst_target = get_info("targetMeanPrice", "targetMedianPrice")
+        analyst_high = get_info("targetHighPrice")
+        analyst_low = get_info("targetLowPrice")
+        n_analysts = info.get("numberOfAnalystOpinions", 0) or 0
+
+        # ── PILASTRO 1: Consensus analisti (peso 50%) ─────────────────────
+        # Usiamo il target mediano se disponibile, altrimenti la media
+        # Solo se basato su almeno 3 analisti e entro range ragionevole
+        pillar1_consensus = None
         try:
-            eps = info.get("trailingEps", None)
-            forward_eps = info.get("forwardEps", None)
-            growth_rate = float(revenue_growth) if revenue_growth else 0.05
-            growth_rate = min(max(growth_rate, 0.0), 0.20)
-            fair_value = None
-            if eps and float(eps) > 0:
-                projected_eps = float(eps) * (1 + growth_rate) ** 5
-                terminal_value = projected_eps * 15
-                fair_value = terminal_value / (1.10) ** 5
-                fair_value = min(fair_value, current_price * 3.0)
-        except Exception:
-            eps = None
-            fair_value = None
-
-        # --- Sector average P/E ---
-        sector_pe_avg = {
-            "Technology": 28, "Healthcare": 22, "Financial Services": 14,
-            "Consumer Cyclical": 20, "Consumer Defensive": 22, "Energy": 12,
-            "Utilities": 18, "Industrials": 20, "Basic Materials": 15,
-            "Real Estate": 25, "Communication Services": 16,
-        }.get(str(sector), 18)
-
-        # Relative valuation vs sector P/E
-        relative_value = None
-        try:
-            if eps and float(eps) > 0 and pe:
-                relative_value = round(float(eps) * sector_pe_avg, 2)
-                relative_value = min(relative_value, current_price * 2.5)
-        except Exception:
-            relative_value = None
-
-        # --- Multi-source target price ---
-        try:
-            targets = []
-            weights = []
-
-            # 1. Analyst consensus
-            if analyst_target:
+            if analyst_target and float(n_analysts) >= 3:
                 at = float(analyst_target)
-                if 0.4 * current_price < at < 2.0 * current_price:
-                    targets.append(at)
-                    weights.append(0.45)
-
-            # 2. 52-week high
-            try:
-                high_52w = float(hist.tail(252)["High"].max())
-                if high_52w > current_price:
-                    targets.append(high_52w)
-                    weights.append(0.20)
-            except Exception:
-                pass
-
-            # 3. Relative valuation
-            if relative_value and relative_value > current_price * 0.8:
-                targets.append(min(float(relative_value), current_price * 1.5))
-                weights.append(0.20)
-
-            # 4. DCF
-            if fair_value and float(fair_value) > current_price:
-                targets.append(min(float(fair_value), current_price * 1.5))
-                weights.append(0.15)
-
-            # Fallback
-            if not targets:
-                targets.append(current_price * 1.12)
-                weights.append(1.0)
-
-            total_w = sum(weights)
-            target_price = round(sum(t * w for t, w in zip(targets, weights)) / total_w, 2)
-            target_price = max(target_price, round(current_price * 1.05, 2))
-            target_price = min(target_price, round(current_price * 1.50, 2))
+                # Sanity: deve essere entro -40%/+100% dal prezzo attuale
+                if 0.6 * current_price < at < 2.0 * current_price:
+                    pillar1_consensus = at
         except Exception:
-            target_price = round(current_price * 1.12, 2)
+            pass
 
-        # --- Entry ---
+        # ── PILASTRO 2: Multipli comparabili settore (peso 30%) ──────────
+        # P/E medio settore × EPS forward (più conservativo del trailing)
+        sector_pe_map = {
+            "Technology": 25, "Healthcare": 20, "Financial Services": 12,
+            "Consumer Cyclical": 18, "Consumer Defensive": 20, "Energy": 11,
+            "Utilities": 16, "Industrials": 18, "Basic Materials": 13,
+            "Real Estate": 22, "Communication Services": 14,
+        }
+        sector_pe_avg = sector_pe_map.get(str(sector), 16)
+        pillar2_multiples = None
+        try:
+            use_eps = float(forward_eps) if forward_eps and float(forward_eps) > 0 else (
+                      float(eps) if eps and float(eps) > 0 else None)
+            if use_eps:
+                pillar2_multiples = round(use_eps * sector_pe_avg, 2)
+                # Sanity: non più di +80% dal prezzo attuale
+                pillar2_multiples = min(pillar2_multiples, current_price * 1.80)
+                if pillar2_multiples < current_price * 0.5:
+                    pillar2_multiples = None  # anomalia dati
+        except Exception:
+            pillar2_multiples = None
+
+        # ── PILASTRO 3: DCF conservativo (peso 20%) ───────────────────────
+        # Growth rate: min tra storico e 3% per aziende mature (max 8%)
+        # WACC: 8% aziende stabili, 10% medie, 12% rischiose (beta > 1.5)
+        pillar3_dcf = None
+        try:
+            use_eps_dcf = float(forward_eps) if forward_eps and float(forward_eps) > 0 else (
+                          float(eps) if eps and float(eps) > 0 else None)
+            if use_eps_dcf:
+                hist_growth = float(revenue_growth) if revenue_growth else 0.02
+                # Conservativo: cap al 8%, floor a 0%
+                conservative_growth = min(max(hist_growth * 0.6, 0.0), 0.08)
+
+                # WACC basato su beta
+                beta_val = float(beta) if beta else 1.0
+                if beta_val < 0.8:
+                    wacc = 0.08
+                elif beta_val < 1.2:
+                    wacc = 0.09
+                elif beta_val < 1.5:
+                    wacc = 0.10
+                else:
+                    wacc = 0.12
+
+                # DCF 5 anni + terminal value (P/E exit 14x per sicurezza)
+                projected = use_eps_dcf
+                dcf_sum = 0
+                for y in range(1, 6):
+                    projected *= (1 + conservative_growth)
+                    dcf_sum += projected / (1 + wacc) ** y
+                terminal = (projected * 12) / (1 + wacc) ** 5
+                pillar3_dcf = round(dcf_sum + terminal, 2)
+                # Cap: non più di +60% dal prezzo attuale
+                pillar3_dcf = min(pillar3_dcf, current_price * 1.60)
+                if pillar3_dcf < current_price * 0.4:
+                    pillar3_dcf = None
+        except Exception:
+            pillar3_dcf = None
+
+        # ── Fair Value zona ragionevole (media ponderata dei 3 pilastri) ──
+        fv_components = []
+        fv_weights = []
+        if pillar1_consensus:
+            fv_components.append(pillar1_consensus)
+            fv_weights.append(0.50)
+        if pillar2_multiples:
+            fv_components.append(pillar2_multiples)
+            fv_weights.append(0.30)
+        if pillar3_dcf:
+            fv_components.append(pillar3_dcf)
+            fv_weights.append(0.20)
+
+        if fv_components:
+            total_w = sum(fv_weights)
+            fair_value = round(sum(v * w for v, w in zip(fv_components, fv_weights)) / total_w, 2)
+        else:
+            fair_value = None
+
+        # ── Target price = Fair Value con guardrail realistici ────────────
+        try:
+            if fair_value:
+                target_price = fair_value
+                # Guardrail: tra +5% e +40% dal prezzo attuale
+                target_price = max(target_price, round(current_price * 1.05, 2))
+                target_price = min(target_price, round(current_price * 1.40, 2))
+            else:
+                # Fallback tecnico: massimo 52 settimane
+                high_52w = float(hist.tail(252)["High"].max())
+                target_price = round(max(high_52w, current_price * 1.08), 2)
+                target_price = min(target_price, round(current_price * 1.40, 2))
+        except Exception:
+            target_price = round(current_price * 1.10, 2)
+
+        # ── Entry price ───────────────────────────────────────────────────
         entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
 
-        # --- Dynamic stop loss ---
+        # ── Stop loss dinamico (ATR-based) ────────────────────────────────
         try:
             atr_stop = float((hist["High"] - hist["Low"]).tail(14).mean())
             stop_loss = round(current_price - (atr_stop * 2), 2)
@@ -342,6 +384,10 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "atr": atr,
             "daily_move_pct": round(daily_move_pct, 2) if daily_move_pct else None,
             "fair_value": round(fair_value, 2) if fair_value else None,
+            "fv_consensus": round(pillar1_consensus, 2) if pillar1_consensus else None,
+            "fv_multiples": round(pillar2_multiples, 2) if pillar2_multiples else None,
+            "fv_dcf": round(pillar3_dcf, 2) if pillar3_dcf else None,
+            "n_analysts": int(n_analysts) if n_analysts else 0,
             "analyst_target": analyst_target,
             "signal": signal,
             "score": round(score),
