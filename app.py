@@ -243,6 +243,30 @@ if page == "🔍 Analisi Titolo":
             k4.metric("🛡️ Stop Loss", f"{data['stop_loss']} {data['currency']}")
             k5.metric("Fair Value (DCF)", f"{data['fair_value']} {data['currency']}" if data['fair_value'] else "N/A")
 
+            # ── Stima tempo + guadagno ──
+            if data.get("upside_pct") and data["upside_pct"] > 0:
+                tc = data.get("time_category", "N/A")
+                tc_color = "#5b8dee" if "Breve" in tc else ("#00d09c" if "Medio" in tc and "Lungo" not in tc else ("#f0b429" if "Lungo" in tc else ("#ff8c42" if "Molto" in tc else "#8892a4")))
+                ann = data.get("annualized_return")
+                net = data.get("upside_net_pct")
+                st.markdown(f"""
+<div style='background:#1c1f2e;border-radius:10px;padding:16px;margin:8px 0;display:flex;gap:32px;flex-wrap:wrap;border:1px solid #2d3147'>
+    <div>
+        <div style='color:#8892a4;font-size:0.78rem'>⏱ Tempo stimato al target</div>
+        <div style='color:{tc_color};font-weight:700;font-size:1.05rem'>{data.get("time_label","N/A")}</div>
+    </div>
+    <div>
+        <div style='color:#8892a4;font-size:0.78rem'>📈 Guadagno lordo</div>
+        <div style='color:#00d09c;font-weight:700;font-size:1.05rem'>+{data['upside_pct']}%</div>
+    </div>
+    <div>
+        <div style='color:#8892a4;font-size:0.78rem'>💶 Guadagno netto (−26% tasse IT)</div>
+        <div style='color:#00d09c;font-weight:700;font-size:1.05rem'>+{net}%</div>
+    </div>
+    {'<div><div style="color:#8892a4;font-size:0.78rem">📊 Rendimento annualizzato</div><div style="color:#c77dff;font-weight:700;font-size:1.05rem">+' + str(ann) + '% /anno</div></div>' if ann else ''}
+</div>
+""", unsafe_allow_html=True)
+
             # ── Signal ──
             score = data["score"]
             signal_color = "#00d09c" if "BUY" in data["signal"] else ("#f0b429" if "HOLD" in data["signal"] else "#ff4d6d")
