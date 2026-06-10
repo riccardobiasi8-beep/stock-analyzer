@@ -303,66 +303,149 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         else:
             signal = "🔴 SELL / AVOID"
 
-        # --- Upside & Guadagno netto ---
+        # ══════════════════════════════════════════════════════════════════
+        # MODELLO PREVISIONALE TEMPORALE — 4 METODI PROFESSIONALI
+        # ══════════════════════════════════════════════════════════════════
+
         upside = ((target_price - current_price) / current_price * 100) if target_price else None
-        upside_net = round(upside * 0.74, 1) if upside else None  # al netto 26% capital gain Italia
+        upside_net = round(upside * 0.74, 1) if upside else None
 
-        # --- Stima tempo al target ---
-        # Calcola ATR (Average True Range) su 20 giorni = volatilità giornaliera media
         atr = None
-        daily_move_pct = None
-        try:
-            high_low = hist["High"] - hist["Low"]
-            atr_20 = float(high_low.tail(20).mean())
-            atr = round(atr_20, 2)
-            daily_move_pct = (atr_20 / current_price) * 100  # % movimento giornaliero medio
-        except Exception:
-            pass
-
-        # Stima giorni lavorativi al target
         estimated_days = None
         estimated_months = None
-        time_label = None
+        time_label = "N/A"
+        time_category = "N/A"
         annualized_return = None
+        time_method = "N/A"
+        time_detail = ""
 
-        if upside and upside > 0 and daily_move_pct and daily_move_pct > 0:
-            # Aggiusta per beta (titoli più volatili si muovono più velocemente)
-            beta_factor = min(max(beta if beta else 1.0, 0.3), 3.0)
-            # Efficienza del movimento: non tutti i giorni vanno nella direzione giusta
-            # In media un titolo percorre ~40-60% del suo potenziale ATR nella direzione desiderata
-            effective_daily_pct = daily_move_pct * 0.45 * beta_factor
-            effective_daily_pct = max(effective_daily_pct, 0.05)  # minimo 0.05%/giorno
+        try:
+            # ── METODO 1: ATR × Regola del 3 ─────────────────────────────
+            # Giorni minimi = distanza_target / ATR × fattore_ritracciamento
+            # Poi si moltiplica per 3 (regola d'oro)
+            high_low = hist["High"] - hist["Low"]
+            atr_14 = float(high_low.tail(14).mean())
+            atr = round(atr_14, 2)
 
-            estimated_days = int(upside / effective_daily_pct)
-            estimated_days = max(5, min(estimated_days, 500))  # cap tra 1 settimana e 2 anni
+            distance = target_price - entry_price if target_price and entry_price else 0
 
-            # Converti in mesi lavorativi (21 giorni = 1 mese)
-            estimated_months = round(estimated_days / 21, 1)
+            if distance > 0 and atr_14 > 0:
+                # Giorni minimi teorici (formula ATR)
+                raw_days = distance / atr_14
+                # Moltiplicatore ritracciamento: 3x per titoli stabili, 2x per volatili
+                beta_val = float(beta) if beta else 1.0
+                if beta_val < 0.8:
+                    retrace_factor = 4.0   # titoli lenti (utility, telecom): ×4
+                elif beta_val < 1.2:
+                    retrace_factor = 3.0   # titoli medi: ×3 (regola d'oro)
+                elif beta_val < 1.8:
+                    retrace_factor = 2.5   # titoli ciclici
+                else:
+                    retrace_factor = 2.0   # titoli molto volatili
 
-            # Label descrittiva
-            if estimated_months <= 1:
-                time_label = f"~{estimated_days} giorni lavorativi (breve termine)"
-                time_category = "🔵 Breve (< 1 mese)"
-            elif estimated_months <= 3:
-                time_label = f"~{round(estimated_months, 0):.0f} mesi (breve/medio)"
-                time_category = "🟢 Breve/Medio (1-3 mesi)"
-            elif estimated_months <= 6:
-                time_label = f"~{round(estimated_months, 0):.0f} mesi (medio termine)"
-                time_category = "🟡 Medio (3-6 mesi)"
-            elif estimated_months <= 12:
-                time_label = f"~{round(estimated_months, 0):.0f} mesi (lungo termine)"
-                time_category = "🟠 Lungo (6-12 mesi)"
-            else:
-                time_label = f"~{round(estimated_months/12, 1):.1f} anni (molto lungo)"
-                time_category = "🔴 Molto lungo (> 1 anno)"
+                atr_days = raw_days * retrace_factor
+                atr_months = atr_days / 21
 
-            # Rendimento annualizzato
-            if estimated_months > 0:
-                annualized_return = round(upside / (estimated_months / 12), 1)
-                annualized_return = min(annualized_return, 999)  # cap
-        else:
-            time_category = "N/A"
+                # ── METODO 2: Velocità storica (Beta + tipo titolo) ───────
+                # Rendimento annuo atteso per tipologia
+                if beta_val < 0.6:
+                    annual_expected_pct = 8.0    # utility/telecom: 8-12% annuo
+                elif beta_val < 0.9:
+                    annual_expected_pct = 12.0
+                elif beta_val < 1.3:
+                    annual_expected_pct = 18.0   # mercato medio
+                elif beta_val < 1.8:
+                    annual_expected_pct = 25.0   # ciclici
+                else:
+                    annual_expected_pct = 35.0   # growth/high beta
+
+                velocity_months = (upside / annual_expected_pct) * 12 if upside else None
+
+                # ── METODO 3: Catalizzatore fondamentale ─────────────────
+                # Stima basata su quante trimestrali servono per giustificare il target
+                if upside:
+                    if upside < 10:
+                        catalyst_months = 3     # una trimestrale positiva
+                    elif upside < 25:
+                        catalyst_months = 6     # due trimestrali positive
+                    elif upside < 40:
+                        catalyst_months = 12    # anno pieno
+                    else:
+                        catalyst_months = 18    # ciclo lungo
+                else:
+                    catalyst_months = 12
+
+                # ── MEDIA PONDERATA DEI 3 METODI ─────────────────────────
+                # ATR = 40%, velocità storica = 35%, catalizzatore = 25%
+                methods = []
+                mw = []
+                if atr_months:
+                    methods.append(atr_months)
+                    mw.append(0.40)
+                if velocity_months:
+                    methods.append(velocity_months)
+                    mw.append(0.35)
+                methods.append(float(catalyst_months))
+                mw.append(0.25)
+
+                total_mw = sum(mw)
+                estimated_months_raw = sum(m * w for m, w in zip(methods, mw)) / total_mw
+
+                # ── METODO 4: Regola del 3 applicata alla categoria ───────
+                # Corregge l'ottimismo algoritmico
+                if estimated_months_raw <= 1:
+                    # "1 mese" → in realtà 3 mesi
+                    estimated_months = round(estimated_months_raw * 3, 1)
+                    correction_note = "×3 (regola prudenza)"
+                elif estimated_months_raw <= 3:
+                    # "3 mesi" → in realtà ~6-9 mesi
+                    estimated_months = round(estimated_months_raw * 2.5, 1)
+                    correction_note = "×2.5 (regola prudenza)"
+                elif estimated_months_raw <= 12:
+                    # "6-12 mesi" → ×2
+                    estimated_months = round(estimated_months_raw * 2.0, 1)
+                    correction_note = "×2 (regola prudenza)"
+                else:
+                    estimated_months = round(estimated_months_raw * 1.5, 1)
+                    correction_note = "×1.5 (regola prudenza)"
+
+                # Cap: min 1 mese, max 4 anni
+                estimated_months = max(1.0, min(estimated_months, 48.0))
+                estimated_days = int(estimated_months * 21)
+
+                # Dettaglio metodologia
+                time_detail = (
+                    f"ATR({round(atr_months,1)}m) + "
+                    f"Velocità({round(velocity_months,1) if velocity_months else '?'}m) + "
+                    f"Catalizzatore({catalyst_months}m) → {correction_note}"
+                )
+
+                # Label finale
+                if estimated_months <= 3:
+                    time_label = f"~{round(estimated_months,0):.0f} mesi"
+                    time_category = "🟢 Breve (< 3 mesi)"
+                elif estimated_months <= 6:
+                    time_label = f"~{round(estimated_months,0):.0f} mesi"
+                    time_category = "🟡 Medio (3-6 mesi)"
+                elif estimated_months <= 12:
+                    time_label = f"~{round(estimated_months,0):.0f} mesi"
+                    time_category = "🟠 Lungo (6-12 mesi)"
+                elif estimated_months <= 24:
+                    time_label = f"~{round(estimated_months/12,1):.1f} anni"
+                    time_category = "🔴 Lungo (1-2 anni)"
+                else:
+                    time_label = f"~{round(estimated_months/12,1):.1f} anni"
+                    time_category = "⛔ Molto lungo (> 2 anni)"
+
+                # Rendimento annualizzato realistico
+                if estimated_months > 0 and upside:
+                    annualized_return = round(upside / (estimated_months / 12), 1)
+                    annualized_return = min(annualized_return, 200)
+
+        except Exception:
             time_label = "N/A"
+            time_category = "N/A"
+            time_detail = ""
 
         return {
             "ticker": ticker,
@@ -382,7 +465,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "estimated_months": estimated_months,
             "annualized_return": annualized_return,
             "atr": atr,
-            "daily_move_pct": round(daily_move_pct, 2) if daily_move_pct else None,
+            "time_detail": time_detail if 'time_detail' in dir() else "",
             "fair_value": round(fair_value, 2) if fair_value else None,
             "fv_consensus": round(pillar1_consensus, 2) if pillar1_consensus else None,
             "fv_multiples": round(pillar2_multiples, 2) if pillar2_multiples else None,
