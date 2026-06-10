@@ -460,7 +460,7 @@ if page == "🔍 Analisi Titolo":
     st.title("🔍 Analisi Titolo")
     st.caption("Inserisci un ticker per ottenere analisi tecnica, fondamentale, entry/exit price e sentiment.")
 
-    col_input, col_period = st.columns([3, 1])
+    col_input, _ = st.columns([3, 1])
     with col_input:
         search_query = st.text_input(
             "Cerca per nome o ticker",
@@ -521,10 +521,7 @@ if page == "🔍 Analisi Titolo":
                 )
                 ticker_input = choice.split(" — ")[0].split(" [")[0].strip()
 
-    with col_period:
-        period_options = ["6mo", "1y", "2y", "5y"]
-        default_idx = period_options.index(st.session_state.last_period) if st.session_state.last_period in period_options else 1
-        period = st.selectbox("Periodo", period_options, index=default_idx, label_visibility="collapsed")
+    period = "2y"  # always fetch 2y, filtered in chart by per_sel
 
     # Fetch solo se ticker è diverso dall'ultimo o dati assenti
     if ticker_input:
