@@ -915,6 +915,72 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     nc = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{nc}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*", unsafe_allow_html=True)
 
+                # ── Analisi AI del Sentiment ─────────────────────────────
+                st.divider()
+                groq_key_s = st.secrets.get("GROQ_API_KEY", "")
+                if groq_key_s:
+                    sent_cache_key = f"sent_analysis_{ticker_input}"
+
+                    col_btn, _ = st.columns([2, 5])
+                    with col_btn:
+                        if st.button("🧠 Analisi AI Sentiment", key="ai_sentiment_btn", type="primary"):
+                            if sent_cache_key in st.session_state:
+                                del st.session_state[sent_cache_key]
+
+                    if sent_cache_key not in st.session_state:
+                        with st.spinner("Groq sta analizzando il sentiment..."):
+                            try:
+                                import requests as _req
+                                an = sent.get("analyst", {})
+                                sh = sent.get("short", {})
+                                ea = sent.get("earnings", {})
+                                op = sent.get("options", {})
+                                ins = sent.get("insider", {})
+                                rd = sent.get("reddit", {})
+                                nw = sent.get("news", {})
+
+                                _prompt = f"""Sei un analista finanziario senior di Wall Street. Analizza in italiano il sentiment di mercato su {data['name']} ({data['ticker']}).
+
+DATI SENTIMENT DISPONIBILI:
+- Prezzo attuale: {data['current_price']} {data['currency']}
+- Consensus analisti: {an.get('consensus_label','N/A')} | {an.get('n_analysts',0)} analisti | Target medio: {an.get('target_mean','N/A')} | Upside da consensus: {an.get('upside','N/A')}%
+- Short Interest: {sh.get('short_pct','N/A')}% delle azioni shortate | Days to cover: {sh.get('short_ratio','N/A')} | Variazione mese: {sh.get('change_pct','N/A')}%
+- Earnings Surprise ultimi 4 trimestri: {ea.get('surprises','N/A')} | Media: {ea.get('avg_surprise','N/A')}% | Prossimi earnings: {ea.get('next_earnings','N/A')}
+- Options Put/Call ratio: {op.get('put_call_ratio','N/A')} | Call vol: {op.get('calls_volume','N/A')} | Put vol: {op.get('puts_volume','N/A')}
+- Insider trading: {ins.get('label','N/A')} | Acquisti: {ins.get('buys',0)} | Vendite: {ins.get('sells',0)}
+- Reddit mentions: {rd.get('mentions',0)} questa settimana | Sentiment social: {rd.get('avg_sentiment','N/A')}
+- News sentiment: {nw.get('label','N/A')} (score: {nw.get('score','N/A')})
+- Score sentiment composito: {sent.get('score',0)}/100
+
+Scrivi un'analisi narrativa di 250-300 parole che spieghi:
+1. **Il paradosso del consensus** — se c'è contraddizione tra giudizio BUY/SELL e upside negativo/positivo, spiegala come ha fatto il mercato (es: "gli analisti mantengono BUY perché... ma il target non è stato aggiornato perché...")
+2. **Cosa dicono le opzioni e lo short interest** — interpreta put/call ratio e % short come indicatori del sentiment istituzionale reale
+3. **Il nodo degli earnings** — analizza il pattern delle sorprese trimestrali e cosa significa per il futuro
+4. **La data chiave** — se ci sono prossimi earnings, spiega perché quella data è cruciale e cosa potrebbe sbloccare o affossare il titolo
+5. **Verdetto sentiment** — un giudizio finale sul posizionamento del mercato
+
+Sii specifico, usa i numeri, spiega i paradossi. Scrivi come se stessi briefando un cliente privato importante."""
+
+                                _r = _req.post(
+                                    "https://api.groq.com/openai/v1/chat/completions",
+                                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {groq_key_s}"},
+                                    json={"model": "llama-3.3-70b-versatile", "max_tokens": 600,
+                                          "messages": [{"role": "user", "content": _prompt}]},
+                                    timeout=30
+                                )
+                                _j = _r.json()
+                                st.session_state[sent_cache_key] = _j["choices"][0]["message"]["content"]
+                            except Exception as _e:
+                                st.session_state[sent_cache_key] = f"Errore: {_e}"
+
+                    if sent_cache_key in st.session_state:
+                        import re as _re2
+                        _txt = st.session_state[sent_cache_key]
+                        # Render markdown bold
+                        _txt_html = _re2.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _txt)
+                        sc_col = "#30d158" if sent.get("score",50) >= 65 else ("#ff9f0a" if sent.get("score",50) >= 45 else "#ff453a")
+                        st.markdown(f"""<div style='background:#1c1c1e;border-left:3px solid {sc_col};padding:16px 20px;border-radius:0 12px 12px 0;font-size:0.85rem;color:#ebebf5;line-height:1.75'>{_txt_html.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE 2 — SCREENER
