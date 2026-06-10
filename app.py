@@ -32,7 +32,7 @@ TICKER_DICT = {
     "MELI": "MercadoLibre", "INTC": "Intel Corporation", "F": "Ford Motor Company",
     "GM": "General Motors", "T": "AT&T Inc.", "VZ": "Verizon Communications",
     "WFC": "Wells Fargo", "GS": "Goldman Sachs", "MS": "Morgan Stanley",
-    "C": "Citigroup Inc.", "AXP": "American Express", "SHOP": "Shopify Inc.",
+    "C": "Citigroup Inc. (Citi)", "AXP": "American Express", "SHOP": "Shopify Inc.",
     "UBER": "Uber Technologies", "SPOT": "Spotify Technology", "ABNB": "Airbnb Inc.",
     "DASH": "DoorDash Inc.", "COIN": "Coinbase Global", "PLTR": "Palantir Technologies",
     "SNAP": "Snap Inc.", "PINS": "Pinterest Inc.", "RBLX": "Roblox Corporation",
@@ -157,42 +157,58 @@ if page == "🔍 Analisi Titolo":
 
     col_input, col_period = st.columns([3, 1])
     with col_input:
+        # Campo vuoto — NON precompilato con l'ultimo ticker
         search_query = st.text_input(
             "Cerca per nome o ticker",
-            placeholder="es. Apple · NVDA · Eni · Stellantis · SAP · Ferrari",
+            placeholder="es. Apple · Citigroup · Eni · Stellantis · SAP · Ferrari · NVDA",
             label_visibility="collapsed",
-            value=st.session_state.last_ticker,
+            key="search_input",
         ).strip()
 
-        # Suggerimenti live
         ticker_input = ""
         if search_query:
             q = search_query.lower()
-            suggestions = []
-            for ticker, name in TICKER_DICT.items():
-                if q in name.lower() or q in ticker.lower():
-                    suggestions.append(f"{ticker} — {name}")
-            if suggestions:
-                if len(suggestions) == 1:
-                    ticker_input = suggestions[0].split(" — ")[0]
-                    st.caption(f"✅ Trovato: **{suggestions[0]}**")
-                else:
-                    choice = st.selectbox(
-                        "Seleziona il titolo",
-                        suggestions[:10],
-                        label_visibility="collapsed"
-                    )
-                    ticker_input = choice.split(" — ")[0]
+            # Cerca per nome (priorità) e per ticker
+            exact_ticker = []   # match esatto ticker
+            name_matches = []   # match nel nome
+            ticker_matches = [] # match parziale ticker
+
+            for t, n in TICKER_DICT.items():
+                if q == t.lower():
+                    exact_ticker.append(f"{t} — {n}")
+                elif q in n.lower():
+                    name_matches.append(f"{t} — {n}")
+                elif q in t.lower():
+                    ticker_matches.append(f"{t} — {n}")
+
+            suggestions = exact_ticker + name_matches + ticker_matches
+
+            if exact_ticker:
+                # Match esatto ticker → vai diretto
+                ticker_input = exact_ticker[0].split(" — ")[0]
+                st.caption(f"✅ {exact_ticker[0]}")
+            elif len(suggestions) == 1:
+                ticker_input = suggestions[0].split(" — ")[0]
+                st.caption(f"✅ Trovato: **{suggestions[0]}**")
+            elif suggestions:
+                choice = st.selectbox(
+                    "Seleziona il titolo",
+                    suggestions[:12],
+                    label_visibility="collapsed",
+                    key="ticker_select",
+                )
+                ticker_input = choice.split(" — ")[0]
             else:
+                # Nessun risultato nel dizionario → prova come ticker diretto
                 ticker_input = search_query.upper().strip()
-                st.caption(f"🔍 Ricerca diretta: **{ticker_input}**")
+                st.caption(f"🔍 Ticker diretto: **{ticker_input}** (non in dizionario)")
 
     with col_period:
         period_options = ["6mo", "1y", "2y", "5y"]
         default_idx = period_options.index(st.session_state.last_period) if st.session_state.last_period in period_options else 1
         period = st.selectbox("Periodo", period_options, index=default_idx, label_visibility="collapsed")
 
-    # Use cached data if same ticker, else fetch new
+    # Fetch solo se ticker è diverso dall'ultimo o dati assenti
     if ticker_input:
         if ticker_input != st.session_state.last_ticker or st.session_state.last_data is None:
             with st.spinner(f"Carico dati per {ticker_input}..."):
@@ -203,7 +219,7 @@ if page == "🔍 Analisi Titolo":
         else:
             data = st.session_state.last_data
     elif st.session_state.last_data is not None:
-        # Restore last analysis when returning to page
+        # Mostra ultima analisi quando si torna sulla pagina
         data = st.session_state.last_data
         ticker_input = st.session_state.last_ticker
         st.info(f"📌 Ultima analisi: **{st.session_state.last_ticker}** — cerca un nuovo titolo per aggiornare.")
