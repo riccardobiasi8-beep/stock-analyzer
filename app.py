@@ -593,6 +593,53 @@ if page == "🔍 Analisi Titolo":
 </div>
 """, unsafe_allow_html=True)
 
+            # ── Validation setup + ai_metric helper ──────────────────────
+            val = data.get("validation", {})
+            _corrected_fields = set()
+            if val.get("status") == "completed":
+                for c in val.get("corrected_fields", []):
+                    _corrected_fields.add(c.split(":")[0].strip())
+
+            def ai_metric(label, field_key, value, suffix="", delta=None):
+                is_ai = field_key in _corrected_fields
+                display_val = f"{value}{suffix}" if value is not None else "N/A"
+                if is_ai:
+                    st.markdown(f"""<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>
+    <div style='font-size:0.65rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>{label}</div>
+    <div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px;display:flex;align-items:center;gap:6px'>
+        {display_val}
+        <span style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px'>ⓘ AI</span>
+    </div>
+    {f'<div style="font-size:0.75rem;color:#48484a;margin-top:2px">{delta}</div>' if delta else ''}
+</div>""", unsafe_allow_html=True)
+                else:
+                    st.metric(label, display_val, delta=delta)
+
+            # Validation summary badge
+            if val.get("status") == "completed":
+                v_score = val.get("score", 100)
+                v_rel = val.get("reliability", "N/A")
+                v_corr = val.get("corrected_fields", [])
+                v_issues = val.get("issues", [])
+                v_summary = val.get("summary", "")
+                v_icon = "✅" if v_score >= 80 else ("⚠️" if v_score >= 60 else "🔴")
+                badge = f"{v_icon} Dati validati da AI · {v_rel}"
+                if v_corr: badge += f" · {len(v_corr)} correzioni"
+                with st.expander(badge):
+                    if v_corr:
+                        st.markdown("**Correzioni applicate:**")
+                        for c in v_corr:
+                            parts = c.split("→")
+                            if len(parts) == 2:
+                                st.markdown(f"<span style='color:#0a84ff'>ⓘ</span> **{parts[0].strip()}** → <span style='color:#0a84ff'>{parts[1].strip()}</span>", unsafe_allow_html=True)
+                    if v_issues:
+                        st.markdown("**Anomalie rilevate:**")
+                        for issue in v_issues:
+                            st.markdown(f"⚠️ {issue}")
+                    if not v_corr and not v_issues:
+                        st.markdown("✅ Tutti i dati nella norma.")
+                    if v_summary: st.caption(v_summary)
+
             # ── AI Summary auto ───────────────────────────────────────────
             groq_key = st.secrets.get("GROQ_API_KEY", "")
             if groq_key:
@@ -640,8 +687,8 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
         <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
         <div style='font-size:0.95rem;font-weight:600;color:#ffffff;margin-top:2px'>{fmt(data['entry_price'],cur)}</div>
     </div>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target</div>
+    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "target_price" in _corrected_fields else "transparent"};border-radius:4px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "target_price" in _corrected_fields else ""}</div>
         <div style='font-size:0.95rem;font-weight:600;color:#ff9f0a;margin-top:2px'>{fmt(data['target_price'],cur)}</div>
     </div>
     <div style='background:#000000;padding:11px 14px'>
@@ -649,12 +696,12 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
         <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:2px'>{fmt(data['stop_loss'],cur)}</div>
     </div>
     <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#ffffff;margin-top:2px'>{fmt(data.get('fair_value'),cur) if data.get('fair_value') else '—'}</div>
+    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "fair_value" in _corrected_fields else "transparent"};border-radius:4px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "fair_value" in _corrected_fields else ""}</div>
     </div>
     <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{upside}%' if upside else '—'}</div>
+    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "upside_pct" in _corrected_fields else "transparent"};border-radius:4px'>
+        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "upside_pct" in _corrected_fields else ""}</div>
     </div>
     <div style='background:#000000;padding:11px 14px'>
         <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
@@ -812,17 +859,17 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 # ── Fondamentali ─────────────────────────────────────────
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    st.metric("P/E Ratio", data["pe"] if data["pe"] else "N/A")
-                    st.metric("P/B Ratio", data["pb"] if data["pb"] else "N/A")
-                    st.metric("EV/EBITDA", data["ev_ebitda"] if data["ev_ebitda"] else "N/A")
+                    ai_metric("P/E Ratio", "pe", data["pe"])
+                    ai_metric("P/B Ratio", "pb", data["pb"])
+                    ai_metric("EV/EBITDA", "ev_ebitda", data["ev_ebitda"])
                 with c2:
-                    st.metric("ROE", f"{data['roe']}%" if data["roe"] else "N/A")
-                    st.metric("Margine Netto", f"{data['profit_margin']}%" if data["profit_margin"] else "N/A")
-                    st.metric("Crescita Ricavi", f"{data['revenue_growth']}%" if data["revenue_growth"] else "N/A")
+                    ai_metric("ROE", "roe", data["roe"], suffix="%" if data["roe"] else "")
+                    ai_metric("Margine Netto", "profit_margin", data["profit_margin"], suffix="%" if data["profit_margin"] else "")
+                    ai_metric("Crescita Ricavi", "revenue_growth", data["revenue_growth"], suffix="%" if data["revenue_growth"] else "")
                 with c3:
-                    st.metric("Debt/Equity", data["debt_equity"] if data["debt_equity"] else "N/A")
-                    st.metric("Dividend Yield", f"{data['dividend_yield']}%" if data["dividend_yield"] else "N/A")
-                    st.metric("Beta", data["beta"] if data["beta"] else "N/A")
+                    ai_metric("Debt/Equity", "debt_equity", data["debt_equity"])
+                    ai_metric("Dividend Yield", "dividend_yield", data["dividend_yield"], suffix="%" if data["dividend_yield"] else "")
+                    ai_metric("Beta", "beta", data["beta"])
                     mc = data["market_cap"]
                     if mc:
                         if mc > 1e12: mc_str = f"${mc/1e12:.1f}T"
