@@ -5,6 +5,84 @@ import pandas as pd
 from modules.analyzer import get_stock_data
 from modules.screener import run_screener, MARKET_GROUPS
 from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context
+import time
+
+# ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
+TICKER_DICT = {
+    "AAPL": "Apple Inc.", "MSFT": "Microsoft Corporation", "NVDA": "NVIDIA Corporation",
+    "AMZN": "Amazon.com Inc.", "GOOGL": "Alphabet Inc. (Google)", "META": "Meta Platforms (Facebook)",
+    "TSLA": "Tesla Inc.", "BRK-B": "Berkshire Hathaway", "LLY": "Eli Lilly",
+    "AVGO": "Broadcom Inc.", "JPM": "JPMorgan Chase", "UNH": "UnitedHealth Group",
+    "XOM": "Exxon Mobil", "V": "Visa Inc.", "MA": "Mastercard", "PG": "Procter & Gamble",
+    "JNJ": "Johnson & Johnson", "HD": "Home Depot", "MRK": "Merck & Co.",
+    "ABBV": "AbbVie Inc.", "CVX": "Chevron Corporation", "COST": "Costco Wholesale",
+    "PEP": "PepsiCo Inc.", "KO": "Coca-Cola Company", "WMT": "Walmart Inc.",
+    "CRM": "Salesforce Inc.", "BAC": "Bank of America", "ACN": "Accenture",
+    "MCD": "McDonald's Corporation", "TMO": "Thermo Fisher Scientific",
+    "CSCO": "Cisco Systems", "ABT": "Abbott Laboratories", "NFLX": "Netflix Inc.",
+    "ADBE": "Adobe Inc.", "AMD": "Advanced Micro Devices", "TXN": "Texas Instruments",
+    "NEE": "NextEra Energy", "PM": "Philip Morris", "DHR": "Danaher Corporation",
+    "QCOM": "Qualcomm Inc.", "UNP": "Union Pacific", "RTX": "RTX Corporation",
+    "HON": "Honeywell International", "IBM": "IBM Corporation", "GE": "GE Aerospace",
+    "SBUX": "Starbucks Corporation", "AMAT": "Applied Materials", "CAT": "Caterpillar Inc.",
+    "INTU": "Intuit Inc.", "NOW": "ServiceNow Inc.", "AMGN": "Amgen Inc.",
+    "PFE": "Pfizer Inc.", "GILD": "Gilead Sciences", "DE": "Deere & Company",
+    "PYPL": "PayPal Holdings", "DIS": "Walt Disney Company", "BKNG": "Booking Holdings",
+    "PANW": "Palo Alto Networks", "LRCX": "Lam Research", "ADI": "Analog Devices",
+    "MELI": "MercadoLibre", "INTC": "Intel Corporation", "F": "Ford Motor Company",
+    "GM": "General Motors", "T": "AT&T Inc.", "VZ": "Verizon Communications",
+    "WFC": "Wells Fargo", "GS": "Goldman Sachs", "MS": "Morgan Stanley",
+    "C": "Citigroup Inc.", "AXP": "American Express", "SHOP": "Shopify Inc.",
+    "UBER": "Uber Technologies", "SPOT": "Spotify Technology", "ABNB": "Airbnb Inc.",
+    "DASH": "DoorDash Inc.", "COIN": "Coinbase Global", "PLTR": "Palantir Technologies",
+    "SNAP": "Snap Inc.", "PINS": "Pinterest Inc.", "RBLX": "Roblox Corporation",
+    "ORCL": "Oracle Corporation", "COP": "ConocoPhillips", "OXY": "Occidental Petroleum",
+    "BA": "Boeing Company", "LMT": "Lockheed Martin", "NOC": "Northrop Grumman",
+    "GD": "General Dynamics", "UPS": "United Parcel Service", "FDX": "FedEx Corporation",
+    "DAL": "Delta Air Lines", "UAL": "United Airlines", "AAL": "American Airlines",
+    "MAR": "Marriott International", "HLT": "Hilton Worldwide",
+    "CVS": "CVS Health", "CI": "Cigna Group", "SYK": "Stryker Corporation",
+    "MDT": "Medtronic plc", "BSX": "Boston Scientific", "ISRG": "Intuitive Surgical",
+    "REGN": "Regeneron Pharmaceuticals", "VRTX": "Vertex Pharmaceuticals",
+    "BIIB": "Biogen Inc.", "MRNA": "Moderna Inc.", "NVO": "Novo Nordisk",
+    "BLK": "BlackRock Inc.", "GS": "Goldman Sachs", "SPGI": "S&P Global",
+    "NEM": "Newmont Corporation", "FCX": "Freeport-McMoRan",
+    # DAX Germany
+    "ADS.DE": "Adidas AG", "ALV.DE": "Allianz SE", "BAS.DE": "BASF SE",
+    "BAYN.DE": "Bayer AG", "BMW.DE": "BMW AG", "CBK.DE": "Commerzbank AG",
+    "CON.DE": "Continental AG", "DTE.DE": "Deutsche Telekom AG",
+    "EOAN.DE": "E.ON SE", "FRE.DE": "Fresenius SE", "IFX.DE": "Infineon Technologies",
+    "MBG.DE": "Mercedes-Benz Group", "MRK.DE": "Merck KGaA", "MTX.DE": "MTU Aero Engines",
+    "MUV2.DE": "Munich Re", "P911.DE": "Porsche AG", "RWE.DE": "RWE AG",
+    "SAP.DE": "SAP SE", "SIE.DE": "Siemens AG", "VOW3.DE": "Volkswagen AG",
+    "VNA.DE": "Vonovia SE", "ZAL.DE": "Zalando SE", "DBK.DE": "Deutsche Bank AG",
+    "DHL.DE": "DHL Group", "ENR.DE": "Siemens Energy", "AIR.DE": "Airbus SE",
+    "BEI.DE": "Beiersdorf AG", "SHL.DE": "Siemens Healthineers", "HEN3.DE": "Henkel AG",
+    "1COV.DE": "Covestro AG", "DHER.DE": "Delivery Hero", "SY1.DE": "Symrise AG",
+    # FTSE MIB Italy
+    "A2A.MI": "A2A SpA", "AMP.MI": "Amplifon SpA", "AZM.MI": "Azimut Holding",
+    "BAMI.MI": "Banco BPM", "BGN.MI": "Banca Generali", "BPE.MI": "BPER Banca",
+    "BZU.MI": "Buzzi SpA", "CNHI.MI": "CNH Industrial", "ENEL.MI": "Enel SpA",
+    "ENI.MI": "Eni SpA", "FHI.MI": "Ferrari NV", "G.MI": "Assicurazioni Generali",
+    "HER.MI": "Hera SpA", "INW.MI": "Inwit SpA", "ISP.MI": "Intesa Sanpaolo",
+    "ITALGAS.MI": "Italgas SpA", "LDO.MI": "Leonardo SpA", "MB.MI": "Mediobanca",
+    "MONC.MI": "Moncler SpA", "NEXI.MI": "Nexi SpA", "PRY.MI": "Prysmian SpA",
+    "PST.MI": "Poste Italiane", "REC.MI": "Recordati SpA", "RACE.MI": "Ferrari NV",
+    "SPM.MI": "Saipem SpA", "SRG.MI": "Snam SpA", "STM.MI": "STMicroelectronics",
+    "TEN.MI": "Tenaris SA", "TIT.MI": "Telecom Italia", "TRN.MI": "Terna SpA",
+    "UCG.MI": "UniCredit SpA", "UNI.MI": "Unipol Gruppo", "STLAM.MI": "Stellantis NV",
+    "PIRC.MI": "Pirelli & C.", "DIA.MI": "DiaSorin SpA", "FCT.MI": "Fineco Bank",
+    "ERG.MI": "ERG SpA", "CPR.MI": "Cementir Holding",
+    # Euro Stoxx
+    "ASML.AS": "ASML Holding", "INGA.AS": "ING Groep", "PHIA.AS": "Philips NV",
+    "AD.AS": "Ahold Delhaize", "HEIA.AS": "Heineken NV",
+    "MC.PA": "LVMH Moët Hennessy", "OR.PA": "L'Oréal SA", "SAN.PA": "Sanofi SA",
+    "BNP.PA": "BNP Paribas", "ACA.PA": "Crédit Agricole", "CS.PA": "AXA SA",
+    "IBE.MC": "Iberdrola SA", "SAN.MC": "Banco Santander", "ITX.MC": "Inditex (Zara)",
+    "NESN.SW": "Nestlé SA", "ROG.SW": "Roche Holding", "NOVN.SW": "Novartis AG",
+    "NOVOB.CO": "Novo Nordisk",
+}
+NAME_TO_TICKER = {v.lower(): k for k, v in TICKER_DICT.items()}
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -67,11 +145,36 @@ if page == "🔍 Analisi Titolo":
 
     col_input, col_period = st.columns([3, 1])
     with col_input:
-        ticker_input = st.text_input(
-            "Ticker",
-            placeholder="es. AAPL · NVDA · ENI.MI · SAP.DE · RACE.MI",
+        search_query = st.text_input(
+            "Cerca per nome o ticker",
+            placeholder="es. Apple · NVDA · Eni · Stellantis · SAP · Ferrari",
             label_visibility="collapsed",
-        ).upper().strip()
+        ).strip()
+
+        # Suggerimenti live
+        ticker_input = ""
+        if search_query:
+            q = search_query.lower()
+            suggestions = []
+            for ticker, name in TICKER_DICT.items():
+                if q in name.lower() or q in ticker.lower():
+                    suggestions.append(f"{ticker} — {name}")
+            if suggestions:
+                if len(suggestions) == 1:
+                    ticker_input = suggestions[0].split(" — ")[0]
+                    st.caption(f"✅ Trovato: **{suggestions[0]}**")
+                else:
+                    choice = st.selectbox(
+                        "Seleziona il titolo",
+                        suggestions[:10],
+                        label_visibility="collapsed"
+                    )
+                    ticker_input = choice.split(" — ")[0]
+            else:
+                # Assume it's a direct ticker not in dict
+                ticker_input = search_query.upper().strip()
+                st.caption(f"🔍 Ricerca diretta: **{ticker_input}**")
+
     with col_period:
         period = st.selectbox("Periodo", ["6mo", "1y", "2y", "5y"], index=1, label_visibility="collapsed")
 
@@ -205,6 +308,64 @@ if page == "🔍 Analisi Titolo":
                     color = "#00d09c" if art["score"] > 0.05 else ("#ff4d6d" if art["score"] < -0.05 else "#8892a4")
                     st.markdown(f"<span style='color:{color}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*",
                                 unsafe_allow_html=True)
+
+            # ── AI Summary ──────────────────────────────────────────────────
+            st.divider()
+            st.subheader("🤖 Analisi AI — Compra o No?")
+            sentiment_for_ai = get_news_sentiment(ticker_input)
+
+            if st.button("Genera analisi AI", type="primary"):
+                with st.spinner("Claude sta analizzando il titolo..."):
+                    prompt = f"""Sei un analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) e dai un giudizio chiaro su se acquistarlo o no.
+
+Dati:
+- Prezzo: {data['current_price']} {data['currency']} | Segnale: {data['signal']} (score: {data['score']}/100)
+- Entry: {data['entry_price']} | Target: {data['target_price']} | Stop Loss: {data['stop_loss']} | Upside: {data['upside_pct']}%
+- Fair Value DCF: {data['fair_value']}
+- RSI: {data['rsi']} | MACD: {data['macd']} vs Signal: {data['macd_signal']}
+- P/E: {data['pe']} | P/B: {data['pb']} | EV/EBITDA: {data['ev_ebitda']}
+- ROE: {data['roe']}% | Margine netto: {data['profit_margin']}% | Crescita ricavi: {data['revenue_growth']}%
+- Debt/Equity: {data['debt_equity']} | Beta: {data['beta']}
+- Settore: {data['sector']} — {data['industry']}
+- Sentiment news: {sentiment_for_ai['label']} (score: {sentiment_for_ai['score']})
+
+Scrivi in italiano un'analisi di 150-200 parole strutturata cosi:
+1. **Fondamentali**: commenta multipli di valutazione e salute finanziaria
+2. **Tecnica**: commenta RSI, MACD, posizione rispetto alle medie mobili
+3. **Sentiment**: commenta il sentiment delle notizie recenti
+4. **Verdetto**: BUY / HOLD / AVOID con motivazione e livelli entry/target consigliati
+
+Sii diretto e pratico."""
+
+                    try:
+                        import requests as req
+                        groq_key = st.secrets.get("GROQ_API_KEY", "")
+                        if not groq_key:
+                            st.error("GROQ_API_KEY non trovata. Aggiungila in Streamlit Secrets.")
+                            st.stop()
+                        response = req.post(
+                            "https://api.groq.com/openai/v1/chat/completions",
+                            headers={
+                                "Content-Type": "application/json",
+                                "Authorization": f"Bearer {groq_key}"
+                            },
+                            json={
+                                "model": "llama-3.3-70b-versatile",
+                                "max_tokens": 1000,
+                                "messages": [{"role": "user", "content": prompt}]
+                            },
+                            timeout=30
+                        )
+                        result = response.json()
+                        ai_text = result["choices"][0]["message"]["content"]
+                        signal_color = "#00d09c" if "BUY" in data["signal"] else ("#f0b429" if "HOLD" in data["signal"] else "#ff4d6d")
+                        st.markdown(f"""
+<div style='background:#1c1f2e;border-radius:12px;padding:24px;border:1px solid {signal_color};margin-top:8px;color:#e0e6f0;line-height:1.7'>
+{ai_text.replace(chr(10), '<br>')}
+</div>
+""", unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Errore API: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
