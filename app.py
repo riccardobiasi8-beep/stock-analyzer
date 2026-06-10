@@ -241,25 +241,19 @@ elif page == "🎯 Screener Scontati":
 
             def color_score(val):
                 if isinstance(val, (int, float)):
-        if df.empty:
-                st.warning("Nessun titolo trovato con i criteri selezionati. Prova ad abbassare lo score minimo.")
-            else:
-                st.success(f"✅ Trovati {len(df)} titoli con score ≥ {min_score}")
+                    if val >= 65: return "background-color: #003d2e; color: #00d09c"
+                    if val >= 50: return "background-color: #2d2200; color: #f0b429"
+                    return "background-color: #2d0010; color: #ff4d6d"
+                return ""
 
-                def color_signal(val):
-                    if "BUY" in str(val): return "color: #00d09c; font-weight: bold"
-                    if "HOLD" in str(val): return "color: #f0b429"
-                    return "color: #ff4d6d"
+            styled = df.style.map(color_signal, subset=["Segnale"]).map(color_score, subset=["Score"])
 
-                def color_score(val):
-                    if isinstance(val, (int, float)):
-                        if val >= 65: return "background-color: #003d2e; color: #00d09c"
-                        if val >= 50: return "background-color: #2d2200; color: #f0b429"
-                        return "background-color: #2d0010; color: #ff4d6d"
-                    return ""
+            st.dataframe(styled, use_container_width=True, height=500)
 
-                styled = df.style.map(color_signal, subset=["Segnale"]).map(color_score, subset=["Score"])
-                st.dataframe(styled, use_container_width=True, height=500)
+            # Download CSV
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button("⬇️ Scarica CSV", csv, "screener_risultati.csv", "text/csv")
+
             # Quick chart of top 5
             st.subheader("Top 5 per Score")
             top5 = df.head(5)
