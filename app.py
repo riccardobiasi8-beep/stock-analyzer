@@ -603,8 +603,14 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 ai_text = st.session_state.get(ai_cache_key)
                 if ai_text:
                     import re as _re
-                    ai_clean = _re.sub(r'\*\*(.*?)\*\*', r'', ai_text)
-                    st.markdown(f"<div style='background:#1c1f27;border-left:3px solid {sig_color};padding:12px 16px;margin:0 0 16px;border-radius:0 10px 10px 0;font-size:0.84rem;color:#9096a8;line-height:1.65'>{ai_clean}</div>", unsafe_allow_html=True)
+                    ai_clean = _re.sub(r'\*\*(.*?)\*\*', r'\1', ai_text).strip()
+                    _ac, _bc = st.columns([11, 1])
+                    with _ac:
+                        st.markdown(f"<div style='background:#1c1f27;border-left:3px solid {sig_color};padding:13px 16px;border-radius:0 10px 10px 0;font-size:0.84rem;color:#c4c8d4;line-height:1.7'>{ai_clean.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
+                    with _bc:
+                        if st.button('↺', key='rigenera_ai', help='Rigenera analisi AI'):
+                            del st.session_state[ai_cache_key]
+                            st.rerun()
 
             # ── Tabs ──
             tab1, tab2, tab3, tab4 = st.tabs(["Grafico", "Tecnica", "Fondamentali", "News & Sentiment"])
@@ -859,70 +865,6 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 for art in news.get("articles", []):
                     nc = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{nc}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*", unsafe_allow_html=True)
-
-            # ── AI detail button in sentiment tab ───────────────────────
-            sentiment_for_ai = sent if "sent" in dir() else {}
-            if st.button("🤖 Rigenera analisi AI dettagliata", type="secondary"):
-                if ai_cache_key in st.session_state: del st.session_state[ai_cache_key]
-                st.rerun()
-            if False:  # legacy placeholder
-                with st.spinner("..."):
-                    prompt = f"""Sei un analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) e dai un giudizio chiaro su se acquistarlo o no.
-
-Dati:
-- Prezzo: {data['current_price']} {data['currency']} | Segnale: {data['signal']} (score: {data['score']}/100)
-- Entry: {data['entry_price']} | Target: {data['target_price']} | Stop Loss: {data['stop_loss']} | Upside: {data['upside_pct']}%
-- Fair Value DCF: {data['fair_value']}
-- RSI: {data['rsi']} | MACD: {data['macd']} vs Signal: {data['macd_signal']}
-- P/E: {data['pe']} | P/B: {data['pb']} | EV/EBITDA: {data['ev_ebitda']}
-- ROE: {data['roe']}% | Margine netto: {data['profit_margin']}% | Crescita ricavi: {data['revenue_growth']}%
-- Debt/Equity: {data['debt_equity']} | Beta: {data['beta']}
-- Settore: {data['sector']} — {data['industry']}
-- Sentiment news: {sentiment_for_ai.get('news', {}).get('label', 'N/A')}
-- Consensus analisti: {sentiment_for_ai.get('analyst', {}).get('consensus_label', 'N/A')} | Target medio: {sentiment_for_ai.get('analyst', {}).get('target_mean', 'N/A')}
-- Short interest: {sentiment_for_ai.get('short', {}).get('short_pct', 'N/A')}%
-- Insider: {sentiment_for_ai.get('insider', {}).get('label', 'N/A')}
-- Earnings surprise medio: {sentiment_for_ai.get('earnings', {}).get('avg_surprise', 'N/A')}%
-- Options put/call: {sentiment_for_ai.get('options', {}).get('put_call_ratio', 'N/A')}
-- Reddit: {sentiment_for_ai.get('reddit', {}).get('label', 'N/A')}
-
-Scrivi in italiano un'analisi di 150-200 parole strutturata cosi:
-1. **Fondamentali**: commenta multipli di valutazione e salute finanziaria
-2. **Tecnica**: commenta RSI, MACD, posizione rispetto alle medie mobili
-3. **Sentiment**: commenta il sentiment delle notizie recenti
-4. **Verdetto**: BUY / HOLD / AVOID con motivazione e livelli entry/target consigliati
-
-Sii diretto e pratico."""
-
-                    try:
-                        import requests as req
-                        groq_key = st.secrets.get("GROQ_API_KEY", "")
-                        if not groq_key:
-                            st.error("GROQ_API_KEY non trovata. Aggiungila in Streamlit Secrets.")
-                            st.stop()
-                        response = req.post(
-                            "https://api.groq.com/openai/v1/chat/completions",
-                            headers={
-                                "Content-Type": "application/json",
-                                "Authorization": f"Bearer {groq_key}"
-                            },
-                            json={
-                                "model": "llama-3.3-70b-versatile",
-                                "max_tokens": 1000,
-                                "messages": [{"role": "user", "content": prompt}]
-                            },
-                            timeout=30
-                        )
-                        result = response.json()
-                        ai_text = result["choices"][0]["message"]["content"]
-                        signal_color = "#30d158" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
-                        st.markdown(f"""
-<div style='background:#1e2128;border-radius:12px;padding:24px;border:1px solid {signal_color}44;margin-top:8px;color:#f5f5f7;line-height:1.7'>
-{ai_text.replace(chr(10), '<br>')}
-</div>
-""", unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Errore API: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
