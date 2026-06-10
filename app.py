@@ -681,42 +681,38 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 t_label = data.get("time_label","—")
                 cur = data['currency']
 
-                st.markdown(f"""
-<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c2c2e;border-radius:12px;overflow:hidden;margin-bottom:12px'>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Entry</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#ffffff;margin-top:2px'>{fmt(data['entry_price'],cur)}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "target_price" in _corrected_fields else "transparent"};border-radius:4px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Target {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "target_price" in _corrected_fields else ""}</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#ff9f0a;margin-top:2px'>{fmt(data['target_price'],cur)}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Stop Loss</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#ff453a;margin-top:2px'>{fmt(data['stop_loss'],cur)}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "fair_value" in _corrected_fields else "transparent"};border-radius:4px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Fair Value {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "fair_value" in _corrected_fields else ""}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-    <div style='background:#000000;padding:11px 14px;border:0.5px solid {"#0a84ff44" if "upside_pct" in _corrected_fields else "transparent"};border-radius:4px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Upside lordo {"<span style='font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px;margin-left:3px'>ⓘ AI</span>" if "upside_pct" in _corrected_fields else ""}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Netto (−26%)</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#30d158;margin-top:2px'>{f'+{net_g}%' if net_g else '—'}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Rend. annuo</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#bf5af2;margin-top:2px'>{f'+{ann_r}%' if ann_r else '—'}</div>
-    </div>
-    <div style='background:#000000;padding:11px 14px'>
-        <div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>Tempo</div>
-        <div style='font-size:0.8rem;font-weight:600;color:#0a84ff;margin-top:2px'>{t_label[:22] if t_label else '—'}</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+                # Grid metriche
+                def _cell(label, value, color=None, ai_field=None):
+                    if color is None: color = '#ffffff'
+                    is_ai = bool(ai_field and ai_field in _corrected_fields)
+                    ai_span = '<span style="font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px">ⓘ AI</span>'
+                    badge = ' ' + ai_span if is_ai else ''
+                    vc = '#0a84ff' if is_ai else color
+                    bo = 'border:0.5px solid #0a84ff44;' if is_ai else ''
+                    val = str(value) if value else '—'
+                    return (
+                        f"<div style='background:#000000;padding:11px 14px;{bo}'>"
+                        f"<div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>{label}{badge}</div>"
+                        f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val}</div></div>")
+
+                upside_str = f'+{upside}%' if upside else '—'
+                netg_str = f'+{net_g}%' if net_g else '—'
+                annr_str = f'+{ann_r}%' if ann_r else '—'
+                fv_str = fmt(data.get('fair_value'), cur) if data.get('fair_value') else '—'
+                _cells = [
+                    _cell('Entry', fmt(data['entry_price'], cur)),
+                    _cell('Target', fmt(data['target_price'], cur), '#ff9f0a', 'target_price'),
+                    _cell('Stop Loss', fmt(data['stop_loss'], cur), '#ff453a'),
+                    _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
+                    _cell('Upside lordo', upside_str, '#30d158', 'upside_pct'),
+                    _cell('Netto (-26%)', netg_str, '#30d158'),
+                    _cell('Rend. annuo', annr_str, '#bf5af2'),
+                    _cell('Tempo', t_label[:25] if t_label else '—', '#0a84ff'),
+                ]
+                _grid = ''.join(_cells)
+                st.markdown(
+                    f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c2c2e;border-radius:12px;overflow:hidden;margin-bottom:12px'>{_grid}</div>",
+                    unsafe_allow_html=True)
 
                 # Period selector — Apple style pill
                 per_sel = st.radio("Periodo", ["1M","3M","6M","1A","2A","5A"], index=3, horizontal=True, label_visibility="collapsed")
