@@ -153,6 +153,24 @@ hr { border: none !important; border-top: 1px solid #252830 !important; margin: 
 ::-webkit-scrollbar-thumb { background: #252830; border-radius: 3px; }
 .stRadio label { color: #c4c8d4 !important; font-size: 0.88rem !important; font-weight: 400 !important; text-transform: none !important; letter-spacing: 0 !important; }
 .stSpinner > div { border-top-color: #4d8eff !important; }
+/* Remove white borders on st.container(border=True) */
+[data-testid="stVerticalBlockBorderWrapper"] { border: 1px solid #252830 !important; border-radius: 14px !important; }
+/* Fix blue boxes - all text inside must be white */
+.stAlert p, .stAlert span, .stAlert div { color: #eef0f5 !important; }
+.stSuccess { background: rgba(52,199,89,0.1) !important; border: 1px solid rgba(52,199,89,0.3) !important; border-radius: 10px !important; }
+.stSuccess p, .stSuccess span { color: #34c759 !important; }
+.stInfo { background: rgba(77,142,255,0.1) !important; border: 1px solid rgba(77,142,255,0.3) !important; border-radius: 10px !important; }
+.stInfo p, .stInfo span { color: #4d8eff !important; }
+.stWarning { background: rgba(255,159,10,0.1) !important; border: 1px solid rgba(255,159,10,0.3) !important; border-radius: 10px !important; }
+.stWarning p, .stWarning span { color: #ff9f0a !important; }
+.stError { background: rgba(255,69,58,0.1) !important; border: 1px solid rgba(255,69,58,0.3) !important; border-radius: 10px !important; }
+.stError p, .stError span { color: #ff453a !important; }
+/* Button text always white */
+.stButton button, .stButton button *, .stDownloadButton button, .stDownloadButton button * { color: #ffffff !important; }
+/* Expander */
+[data-testid="stExpander"] { border: 1px solid #252830 !important; border-radius: 12px !important; background: #1c1f27 !important; }
+[data-testid="stExpander"] summary { color: #9096a8 !important; }
+[data-testid="stExpander"] summary:hover { color: #eef0f5 !important; }
 </style>
 """, unsafe_allow_html=True)
 import plotly.graph_objects as go
@@ -582,8 +600,35 @@ if page == "🔍 Analisi Titolo":
             </div>
             """, unsafe_allow_html=True)
 
+            # ── AI Summary auto (above chart) ────────────────────────────
+            groq_key = st.secrets.get("GROQ_API_KEY", "")
+            if groq_key:
+                ai_cache_key = f"ai_{ticker_input}"
+                if ai_cache_key not in st.session_state:
+                    with st.spinner("Analisi AI in corso..."):
+                        try:
+                            import requests as req
+                            _prompt = f"""Analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) in italiano, max 120 parole.
+Dati: Prezzo {data['current_price']} {data['currency']} | Segnale {data['signal']} score {data['score']}/100 | Entry {data['entry_price']} | Target {data['target_price']} | Stop {data['stop_loss']} | Upside {data['upside_pct']}% | RSI {data['rsi']} | MACD {'bullish' if data['macd'] and data['macd_signal'] and data['macd']>data['macd_signal'] else 'bearish'} | P/E {data['pe']} | P/B {data['pb']} | ROE {data['roe']}% | Settore {data['sector']}
+Struttura: 1 riga fondamentali, 1 riga tecnica, verdetto finale BUY/HOLD/AVOID con entry e target. Sii diretto."""
+                            _r = req.post("https://api.groq.com/openai/v1/chat/completions",
+                                headers={"Content-Type":"application/json","Authorization":f"Bearer {groq_key}"},
+                                json={"model":"llama-3.3-70b-versatile","max_tokens":300,"messages":[{"role":"user","content":_prompt}]},
+                                timeout=20)
+                            _res = _r.json()
+                            st.session_state[ai_cache_key] = _res["choices"][0]["message"]["content"]
+                        except Exception as _e:
+                            st.session_state[ai_cache_key] = None
+
+                ai_text = st.session_state.get(ai_cache_key)
+                if ai_text:
+                    sig_c = "#34c759" if "BUY" in data["signal"] else ("#ff9f0a" if "HOLD" in data["signal"] else "#ff453a")
+                    import re as _re
+                    ai_clean = _re.sub(r'\*\*(.*?)\*\*', r'', ai_text)
+                    st.markdown(f"""<div style='background:#1c1f27;border-left:3px solid {sig_c};border-radius:0 12px 12px 0;padding:14px 18px;margin:12px 0;color:#c4c8d4;font-size:0.88rem;line-height:1.7'>{ai_clean.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
+
             # ── Tabs ──
-            tab1, tab2, tab3, tab4 = st.tabs(["📊 Grafico", "📐 Tecnica", "💼 Fondamentali", "📰 News"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📊 Grafico", "📐 Tecnica", "💼 Fondamentali", "📰 News & Sentiment"])
 
             with tab1:
                 hist = data["hist"]
@@ -627,13 +672,24 @@ if page == "🔍 Analisi Titolo":
                 fig.add_hline(y=30, line_dash="dot", line_color="#30d158", row=3, col=1)
 
                 fig.update_layout(
-                    height=700, template="plotly_dark",
-                    paper_bgcolor="#000000", plot_bgcolor="#000000",
+                    height=620,
+                    template="plotly_dark",
+                    paper_bgcolor="#13151a",
+                    plot_bgcolor="#13151a",
                     xaxis_rangeslider_visible=False,
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02),
-                    margin=dict(l=0, r=0, t=10, b=0),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.01, font=dict(size=11, color="#6b6e77"), bgcolor="rgba(0,0,0,0)"),
+                    margin=dict(l=8, r=8, t=16, b=8),
+                    font=dict(family="Inter, -apple-system, sans-serif", size=11, color="#6b6e77"),
+                    xaxis=dict(showgrid=False, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66"), dtick="M1", tickformat="%b %y"),
+                    yaxis=dict(showgrid=True, gridcolor="#1c1f27", gridwidth=0.5, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66"), tickprefix="  "),
+                    xaxis2=dict(showgrid=False, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66")),
+                    yaxis2=dict(showgrid=False, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66")),
+                    xaxis3=dict(showgrid=False, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66")),
+                    yaxis3=dict(showgrid=True, gridcolor="#1c1f27", gridwidth=0.5, zeroline=False, showline=False, tickfont=dict(size=10, color="#555a66")),
+                    hoverlabel=dict(bgcolor="#1c1f27", bordercolor="#252830", font=dict(size=12, color="#eef0f5")),
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                fig.update_traces(selector=dict(type="candlestick"), increasing_line_width=1.5, decreasing_line_width=1.5, whiskerwidth=0.5)
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
             with tab2:
                 c1, c2, c3 = st.columns(3)
@@ -764,13 +820,13 @@ if page == "🔍 Analisi Titolo":
                     nc = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{nc}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*", unsafe_allow_html=True)
 
-            # ── AI Summary ──────────────────────────────────────────────────
-            st.divider()
-            st.subheader("🤖 Analisi AI — Compra o No?")
-            sentiment_for_ai = sent if "sent" in dir() else get_news_sentiment(ticker_input)
-
-            if st.button("Genera analisi AI", type="primary"):
-                with st.spinner("Claude sta analizzando il titolo..."):
+            # ── AI detail button in sentiment tab ───────────────────────
+            sentiment_for_ai = sent if "sent" in dir() else {}
+            if st.button("🤖 Rigenera analisi AI dettagliata", type="secondary"):
+                if ai_cache_key in st.session_state: del st.session_state[ai_cache_key]
+                st.rerun()
+            if False:  # legacy placeholder
+                with st.spinner("..."):
                     prompt = f"""Sei un analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) e dai un giudizio chiaro su se acquistarlo o no.
 
 Dati:
