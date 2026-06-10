@@ -68,7 +68,7 @@ TICKER_DICT = {
     "ITALGAS.MI": "Italgas SpA", "LDO.MI": "Leonardo SpA", "MB.MI": "Mediobanca",
     "MONC.MI": "Moncler SpA", "NEXI.MI": "Nexi SpA", "PRY.MI": "Prysmian SpA",
     "PST.MI": "Poste Italiane", "REC.MI": "Recordati SpA", "RACE.MI": "Ferrari NV",
-    "SPM.MI": "Saipem SpA", "SRG.MI": "Snam SpA", "STM.MI": "STMicroelectronics",
+    "SPM.MI": "Saipem SpA", "SRG.MI": "Snam SpA", "STM.MI": "STMicroelectronics", "STM": "STMicroelectronics (NYSE)",
     "TEN.MI": "Tenaris SA", "TIT.MI": "Telecom Italia", "TRN.MI": "Terna SpA",
     "UCG.MI": "UniCredit SpA", "UNI.MI": "Unipol Gruppo", "STLAM.MI": "Stellantis NV",
     "PIRC.MI": "Pirelli & C.", "DIA.MI": "DiaSorin SpA", "FCT.MI": "Fineco Bank",
@@ -203,9 +203,9 @@ if page == "🔍 Analisi Titolo":
             if not suggestions:
                 # Nessun risultato → prova come ticker diretto
                 ticker_input = search_query.upper().strip()
-                st.caption(f"🔍 Ticker diretto: **{ticker_input}**")
+                st.caption(f"🔍 Ticker diretto: **{ticker_input}** — provo a cercarlo su Yahoo Finance")
             elif len(suggestions) == 1:
-                ticker_input = suggestions[0].split(" — ")[0]
+                ticker_input = suggestions[0].split(" — ")[0].split(" [")[0].strip()
                 st.caption(f"✅ {suggestions[0]}")
             else:
                 choice = st.selectbox(
@@ -214,7 +214,7 @@ if page == "🔍 Analisi Titolo":
                     label_visibility="collapsed",
                     key="ticker_select",
                 )
-                ticker_input = choice.split(" — ")[0]
+                ticker_input = choice.split(" — ")[0].split(" [")[0].strip()
 
     with col_period:
         period_options = ["6mo", "1y", "2y", "5y"]
@@ -241,7 +241,8 @@ if page == "🔍 Analisi Titolo":
 
     if data is not None:
         if "error" in data:
-            st.error(f"❌ {data['error']} — Controlla il ticker e riprova.")
+            st.error(f"❌ {data['error']}")
+            st.info("💡 Suggerimento: prova il ticker esatto come appare su Yahoo Finance. Esempi: **STM** (NYSE), **ENI.MI** (Milano), **SAP.DE** (Francoforte), **MC.PA** (Parigi)")
         else:
             # ── Header ──
             st.subheader(f"{data['name']} ({data['ticker']})")
