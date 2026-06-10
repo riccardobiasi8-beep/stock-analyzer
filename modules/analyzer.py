@@ -75,7 +75,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
         if current_price is None:
             current_price = float(close.iloc[-1])
-        current_price = float(current_price)
+        current_price = round(float(current_price), 2)
         def safe_float(val):
             try:
                 v = float(val)
