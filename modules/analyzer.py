@@ -92,22 +92,40 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         bb_upper = safe_float(hist["BB_upper"].iloc[-1]) or current_price * 1.02
         bb_lower = safe_float(hist["BB_lower"].iloc[-1]) or current_price * 0.98
 
-        # --- Fundamentals ---
-        pe = info.get("trailingPE", None)
-        pb = info.get("priceToBook", None)
-        ev_ebitda = info.get("enterpriseToEbitda", None)
-        roe = info.get("returnOnEquity", None)
-        profit_margin = info.get("profitMargins", None)
-        revenue_growth = info.get("revenueGrowth", None)
-        debt_equity = info.get("debtToEquity", None)
-        sector = info.get("sector", "N/A")
-        industry = info.get("industry", "N/A")
-        name = info.get("longName", ticker)
-        currency = info.get("currency", "USD")
-        market_cap = info.get("marketCap", None)
-        analyst_target = info.get("targetMeanPrice", None)
-        dividend_yield = info.get("dividendYield", None)
-        beta = info.get("beta", None)
+        # --- Fundamentals (multiple fallbacks for non-US tickers) ---
+        def get_info(*keys, default=None):
+            for k in keys:
+                v = info.get(k)
+                if v is not None and v != "" and v == v:  # not None, not NaN
+                    try:
+                        f = float(v)
+                        if f != 0 or k in ["dividendYield"]:
+                            return f
+                    except (TypeError, ValueError):
+                        return v
+            return default
+
+        pe = get_info("trailingPE", "forwardPE")
+        pb = get_info("priceToBook")
+        ev_ebitda = get_info("enterpriseToEbitda")
+        roe = get_info("returnOnEquity")
+        profit_margin = get_info("profitMargins", "netMargins")
+        revenue_growth = get_info("revenueGrowth", "earningsGrowth")
+        debt_equity = get_info("debtToEquity")
+        dividend_yield = get_info("dividendYield", "trailingAnnualDividendYield")
+        beta = get_info("beta")
+        market_cap = info.get("marketCap") or info.get("enterpriseValue")
+        analyst_target = get_info("targetMeanPrice", "targetMedianPrice")
+        sector = info.get("sector") or info.get("categoryName") or "N/A"
+        industry = info.get("industry") or info.get("fundFamily") or "N/A"
+        name = info.get("longName") or info.get("shortName") or ticker
+        currency = info.get("currency") or info.get("financialCurrency") or "USD"
+
+        # Sanity check: filter out absurd values
+        if pe and (pe < 0 or pe > 500): pe = None
+        if pb and pb < 0: pb = None
+        if roe and abs(roe) > 5: roe = None  # >500% ROE is a data error
+        if debt_equity and debt_equity < 0: debt_equity = None
 
         # --- DCF Fair Value (simplified) ---
         eps = info.get("trailingEps", None)
