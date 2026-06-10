@@ -157,51 +157,64 @@ if page == "🔍 Analisi Titolo":
 
     col_input, col_period = st.columns([3, 1])
     with col_input:
-        # Campo vuoto — NON precompilato con l'ultimo ticker
         search_query = st.text_input(
             "Cerca per nome o ticker",
-            placeholder="es. Apple · Citigroup · Eni · Stellantis · SAP · Ferrari · NVDA",
+            placeholder="es. STMicroelectronics · Apple · Eni · Ferrari · NVDA · SAP",
             label_visibility="collapsed",
             key="search_input",
         ).strip()
 
         ticker_input = ""
-        if search_query:
+        if search_query and len(search_query) >= 2:
+            # 1. Prima cerca nel dizionario locale (veloce)
             q = search_query.lower()
-            # Cerca per nome (priorità) e per ticker
-            exact_ticker = []   # match esatto ticker
-            name_matches = []   # match nel nome
-            ticker_matches = [] # match parziale ticker
-
+            local = []
             for t, n in TICKER_DICT.items():
                 if q == t.lower():
-                    exact_ticker.append(f"{t} — {n}")
-                elif q in n.lower():
-                    name_matches.append(f"{t} — {n}")
-                elif q in t.lower():
-                    ticker_matches.append(f"{t} — {n}")
+                    local.insert(0, f"{t} — {n}")  # exact match in cima
+                elif q in n.lower() or q in t.lower():
+                    local.append(f"{t} — {n}")
 
-            suggestions = exact_ticker + name_matches + ticker_matches
+            # 2. Poi cerca su Yahoo Finance (copertura totale)
+            yahoo_results = []
+            try:
+                import requests as req
+                url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_query}&quotesCount=8&newsCount=0&listsCount=0"
+                headers = {"User-Agent": "Mozilla/5.0"}
+                r = req.get(url, headers=headers, timeout=4)
+                if r.status_code == 200:
+                    data_yf = r.json()
+                    for item in data_yf.get("quotes", []):
+                        sym = item.get("symbol", "")
+                        name_yf = item.get("longname") or item.get("shortname") or ""
+                        exch = item.get("exchange", "")
+                        typ = item.get("quoteType", "")
+                        if sym and name_yf and typ in ["EQUITY", "ETF"]:
+                            entry = f"{sym} — {name_yf} [{exch}]"
+                            # Evita duplicati con dizionario locale
+                            if not any(sym == loc.split(" — ")[0] for loc in local):
+                                yahoo_results.append(entry)
+            except Exception:
+                pass
 
-            if exact_ticker:
-                # Match esatto ticker → vai diretto
-                ticker_input = exact_ticker[0].split(" — ")[0]
-                st.caption(f"✅ {exact_ticker[0]}")
+            # Merge: locali prima, poi Yahoo
+            suggestions = local[:5] + yahoo_results[:6]
+
+            if not suggestions:
+                # Nessun risultato → prova come ticker diretto
+                ticker_input = search_query.upper().strip()
+                st.caption(f"🔍 Ticker diretto: **{ticker_input}**")
             elif len(suggestions) == 1:
                 ticker_input = suggestions[0].split(" — ")[0]
-                st.caption(f"✅ Trovato: **{suggestions[0]}**")
-            elif suggestions:
+                st.caption(f"✅ {suggestions[0]}")
+            else:
                 choice = st.selectbox(
                     "Seleziona il titolo",
-                    suggestions[:12],
+                    suggestions,
                     label_visibility="collapsed",
                     key="ticker_select",
                 )
                 ticker_input = choice.split(" — ")[0]
-            else:
-                # Nessun risultato nel dizionario → prova come ticker diretto
-                ticker_input = search_query.upper().strip()
-                st.caption(f"🔍 Ticker diretto: **{ticker_input}** (non in dizionario)")
 
     with col_period:
         period_options = ["6mo", "1y", "2y", "5y"]
