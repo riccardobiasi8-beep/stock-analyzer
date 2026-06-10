@@ -162,8 +162,66 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         else:
             signal = "🔴 SELL / AVOID"
 
-        # Upside potential
+        # --- Upside & Guadagno netto ---
         upside = ((target_price - current_price) / current_price * 100) if target_price else None
+        upside_net = round(upside * 0.74, 1) if upside else None  # al netto 26% capital gain Italia
+
+        # --- Stima tempo al target ---
+        # Calcola ATR (Average True Range) su 20 giorni = volatilità giornaliera media
+        atr = None
+        daily_move_pct = None
+        try:
+            high_low = hist["High"] - hist["Low"]
+            atr_20 = float(high_low.tail(20).mean())
+            atr = round(atr_20, 2)
+            daily_move_pct = (atr_20 / current_price) * 100  # % movimento giornaliero medio
+        except Exception:
+            pass
+
+        # Stima giorni lavorativi al target
+        estimated_days = None
+        estimated_months = None
+        time_label = None
+        annualized_return = None
+
+        if upside and upside > 0 and daily_move_pct and daily_move_pct > 0:
+            # Aggiusta per beta (titoli più volatili si muovono più velocemente)
+            beta_factor = min(max(beta if beta else 1.0, 0.3), 3.0)
+            # Efficienza del movimento: non tutti i giorni vanno nella direzione giusta
+            # In media un titolo percorre ~40-60% del suo potenziale ATR nella direzione desiderata
+            effective_daily_pct = daily_move_pct * 0.45 * beta_factor
+            effective_daily_pct = max(effective_daily_pct, 0.05)  # minimo 0.05%/giorno
+
+            estimated_days = int(upside / effective_daily_pct)
+            estimated_days = max(5, min(estimated_days, 500))  # cap tra 1 settimana e 2 anni
+
+            # Converti in mesi lavorativi (21 giorni = 1 mese)
+            estimated_months = round(estimated_days / 21, 1)
+
+            # Label descrittiva
+            if estimated_months <= 1:
+                time_label = f"~{estimated_days} giorni lavorativi (breve termine)"
+                time_category = "🔵 Breve (< 1 mese)"
+            elif estimated_months <= 3:
+                time_label = f"~{round(estimated_months, 0):.0f} mesi (breve/medio)"
+                time_category = "🟢 Breve/Medio (1-3 mesi)"
+            elif estimated_months <= 6:
+                time_label = f"~{round(estimated_months, 0):.0f} mesi (medio termine)"
+                time_category = "🟡 Medio (3-6 mesi)"
+            elif estimated_months <= 12:
+                time_label = f"~{round(estimated_months, 0):.0f} mesi (lungo termine)"
+                time_category = "🟠 Lungo (6-12 mesi)"
+            else:
+                time_label = f"~{round(estimated_months/12, 1):.1f} anni (molto lungo)"
+                time_category = "🔴 Molto lungo (> 1 anno)"
+
+            # Rendimento annualizzato
+            if estimated_months > 0:
+                annualized_return = round(upside / (estimated_months / 12), 1)
+                annualized_return = min(annualized_return, 999)  # cap
+        else:
+            time_category = "N/A"
+            time_label = "N/A"
 
         return {
             "ticker": ticker,
@@ -177,6 +235,13 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "target_price": target_price,
             "stop_loss": stop_loss,
             "upside_pct": round(upside, 1) if upside else None,
+            "upside_net_pct": upside_net,
+            "time_label": time_label,
+            "time_category": time_category,
+            "estimated_months": estimated_months,
+            "annualized_return": annualized_return,
+            "atr": atr,
+            "daily_move_pct": round(daily_move_pct, 2) if daily_move_pct else None,
             "fair_value": round(fair_value, 2) if fair_value else None,
             "analyst_target": analyst_target,
             "signal": signal,
