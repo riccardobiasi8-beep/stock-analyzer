@@ -128,87 +128,91 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         if debt_equity and debt_equity < 0: debt_equity = None
 
         # --- DCF Fair Value (simplified, capped) ---
-        eps = info.get("trailingEps", None)
-        forward_eps = info.get("forwardEps", None)
-        growth_rate = revenue_growth if revenue_growth else 0.05
-        growth_rate = min(max(growth_rate, 0.0), 0.20)  # cap at 20% — more realistic
-        discount_rate = 0.10
-        fair_value = None
-        if eps and eps > 0:
-            projected_eps = eps * (1 + growth_rate) ** 5
-            terminal_value = projected_eps * 15
-            fair_value = terminal_value / (1 + discount_rate) ** 5
-            # Cap DCF: max 3x current price (avoids absurd values like freenet)
-            fair_value = min(fair_value, current_price * 3.0)
+        try:
+            eps = info.get("trailingEps", None)
+            forward_eps = info.get("forwardEps", None)
+            growth_rate = float(revenue_growth) if revenue_growth else 0.05
+            growth_rate = min(max(growth_rate, 0.0), 0.20)
+            fair_value = None
+            if eps and float(eps) > 0:
+                projected_eps = float(eps) * (1 + growth_rate) ** 5
+                terminal_value = projected_eps * 15
+                fair_value = terminal_value / (1.10) ** 5
+                fair_value = min(fair_value, current_price * 3.0)
+        except Exception:
+            eps = None
+            fair_value = None
 
-        # --- Sector average P/E for relative valuation ---
+        # --- Sector average P/E ---
         sector_pe_avg = {
             "Technology": 28, "Healthcare": 22, "Financial Services": 14,
             "Consumer Cyclical": 20, "Consumer Defensive": 22, "Energy": 12,
             "Utilities": 18, "Industrials": 20, "Basic Materials": 15,
             "Real Estate": 25, "Communication Services": 16,
-        }.get(sector, 18)
+        }.get(str(sector), 18)
 
-        # Relative valuation: what price would match sector avg P/E?
+        # Relative valuation vs sector P/E
         relative_value = None
-        if eps and eps > 0 and pe:
-            relative_value = round(eps * sector_pe_avg, 2)
-            relative_value = min(relative_value, current_price * 2.5)
+        try:
+            if eps and float(eps) > 0 and pe:
+                relative_value = round(float(eps) * sector_pe_avg, 2)
+                relative_value = min(relative_value, current_price * 2.5)
+        except Exception:
+            relative_value = None
 
-        # --- Multi-source target price (realistic weighted average) ---
-        targets = []
-        weights = []
+        # --- Multi-source target price ---
+        try:
+            targets = []
+            weights = []
 
-        # 1. Analyst consensus — highest weight (most reliable)
-        if analyst_target and analyst_target > 0:
-            # Sanity: analyst target must be within ±60% of current price
-            if 0.4 * current_price < analyst_target < 2.0 * current_price:
-                targets.append(analyst_target)
-                weights.append(0.45)
+            # 1. Analyst consensus
+            if analyst_target:
+                at = float(analyst_target)
+                if 0.4 * current_price < at < 2.0 * current_price:
+                    targets.append(at)
+                    weights.append(0.45)
 
-        # 2. Technical resistance (52-week high area)
-        hist_52w = hist.tail(252)
-        high_52w = float(hist_52w["High"].max())
-        if high_52w > current_price:
-            targets.append(high_52w)
-            weights.append(0.20)
+            # 2. 52-week high
+            try:
+                high_52w = float(hist.tail(252)["High"].max())
+                if high_52w > current_price:
+                    targets.append(high_52w)
+                    weights.append(0.20)
+            except Exception:
+                pass
 
-        # 3. Relative valuation vs sector P/E
-        if relative_value and relative_value > current_price * 0.8:
-            rel_capped = min(relative_value, current_price * 1.5)
-            targets.append(rel_capped)
-            weights.append(0.20)
+            # 3. Relative valuation
+            if relative_value and relative_value > current_price * 0.8:
+                targets.append(min(float(relative_value), current_price * 1.5))
+                weights.append(0.20)
 
-        # 4. DCF (capped, lower weight since very sensitive to assumptions)
-        if fair_value and fair_value > current_price:
-            dcf_capped = min(fair_value, current_price * 1.5)
-            targets.append(dcf_capped)
-            weights.append(0.15)
+            # 4. DCF
+            if fair_value and float(fair_value) > current_price:
+                targets.append(min(float(fair_value), current_price * 1.5))
+                weights.append(0.15)
 
-        # 5. Fallback: modest technical upside
-        if not targets:
-            targets.append(current_price * 1.12)
-            weights.append(1.0)
+            # Fallback
+            if not targets:
+                targets.append(current_price * 1.12)
+                weights.append(1.0)
 
-        # Weighted average target
-        total_w = sum(weights)
-        target_price = round(sum(t * w for t, w in zip(targets, weights)) / total_w, 2)
+            total_w = sum(weights)
+            target_price = round(sum(t * w for t, w in zip(targets, weights)) / total_w, 2)
+            target_price = max(target_price, round(current_price * 1.05, 2))
+            target_price = min(target_price, round(current_price * 1.50, 2))
+        except Exception:
+            target_price = round(current_price * 1.12, 2)
 
-        # Final sanity: target must be between +5% and +50% of current price
-        target_price = max(target_price, round(current_price * 1.05, 2))
-        target_price = min(target_price, round(current_price * 1.50, 2))
-
-        # --- Entry / Stop ---
+        # --- Entry ---
         entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
 
-        # Dynamic stop loss: based on ATR (volatility) not fixed 8%
+        # --- Dynamic stop loss ---
         try:
             atr_stop = float((hist["High"] - hist["Low"]).tail(14).mean())
             stop_loss = round(current_price - (atr_stop * 2), 2)
-            # Min stop: 5%, Max stop: 12%
             stop_loss = max(stop_loss, round(current_price * 0.88, 2))
             stop_loss = min(stop_loss, round(current_price * 0.95, 2))
-        except:
+        except Exception:
             stop_loss = round(current_price * 0.92, 2)
 
         # --- Composite score (0-100) ---
