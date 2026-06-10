@@ -72,26 +72,39 @@ def get_macro_context() -> dict:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def get_news_sentiment(ticker: str) -> dict:
-    """Sentiment from Yahoo Finance news."""
+    """Sentiment from Yahoo Finance news — handles both old and new yfinance formats."""
     try:
         stock = yf.Ticker(ticker)
         news = stock.news
         if not news:
             return {"score": 0, "label": "Neutro", "articles": []}
+
         scores = []
         articles = []
-        for item in news[:8]:
-            title = item.get("title", "")
+        for item in news[:10]:
+            # yfinance >= 0.2.40 wraps content in "content" key
+            if "content" in item and isinstance(item["content"], dict):
+                inner = item["content"]
+                title = inner.get("title", "")
+                url = inner.get("canonicalUrl", {}).get("url", "#") if isinstance(inner.get("canonicalUrl"), dict) else inner.get("clickThroughUrl", {}).get("url", "#")
+                publisher = inner.get("provider", {}).get("displayName", "") if isinstance(inner.get("provider"), dict) else ""
+            else:
+                title = item.get("title", "")
+                url = item.get("link", item.get("url", "#"))
+                publisher = item.get("publisher", item.get("source", ""))
+
             if not title:
                 continue
+
             vs = analyzer.polarity_scores(title)
             scores.append(vs["compound"])
             articles.append({
                 "title": title,
                 "score": round(vs["compound"], 2),
-                "url": item.get("link", "#"),
-                "publisher": item.get("publisher", ""),
+                "url": url or "#",
+                "publisher": publisher or "",
             })
+
         avg = sum(scores) / len(scores) if scores else 0
         if avg >= 0.05: label = "😊 Positivo"
         elif avg <= -0.05: label = "😟 Negativo"
