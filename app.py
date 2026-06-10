@@ -381,12 +381,13 @@ if page == "🔍 Analisi Titolo":
 
             # ── KPI row ──
             k1, k2, k3, k4, k5 = st.columns(5)
-            k1.metric("💰 Prezzo", f"{data['current_price']} {data['currency']}")
-            k2.metric("🎯 Entry suggerito", f"{data['entry_price']} {data['currency']}")
-            k3.metric("🚀 Target price", f"{data['target_price']} {data['currency']}",
+            def fmt(v, cur=""): return f"{v:,.2f} {cur}".strip() if v else "N/A"
+            k1.metric("💰 Prezzo", fmt(data['current_price'], data['currency']))
+            k2.metric("🎯 Entry suggerito", fmt(data['entry_price'], data['currency']))
+            k3.metric("🚀 Target price", fmt(data['target_price'], data['currency']),
                       delta=f"+{data['upside_pct']}%" if data['upside_pct'] else None)
-            k4.metric("🛡️ Stop Loss", f"{data['stop_loss']} {data['currency']}")
-            k5.metric("Fair Value (DCF)", f"{data['fair_value']} {data['currency']}" if data['fair_value'] else "N/A")
+            k4.metric("🛡️ Stop Loss", fmt(data['stop_loss'], data['currency']))
+            k5.metric("Fair Value (DCF)", fmt(data['fair_value'], data['currency']) if data['fair_value'] else "N/A")
 
             # ── Stima tempo + guadagno ──
             if data.get("upside_pct") and data["upside_pct"] > 0:
