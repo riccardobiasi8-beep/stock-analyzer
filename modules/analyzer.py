@@ -45,7 +45,11 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         resistance = float(recent["High"].max())
 
         # --- Current values ---
-        current_price = float(close.iloc[-1])
+        # Multiple fallbacks for current price
+        current_price = info.get("currentPrice") or info.get("regularMarketPrice") or info.get("previousClose")
+        if current_price is None:
+            current_price = float(close.iloc[-1])
+        current_price = float(current_price)
         rsi_val = float(hist["RSI"].iloc[-1])
         macd_val = float(hist["MACD"].iloc[-1])
         macd_sig = float(hist["MACD_signal"].iloc[-1])
