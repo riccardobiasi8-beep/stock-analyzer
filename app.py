@@ -92,6 +92,18 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Session state init ───────────────────────────────────────────────────────
+if "last_ticker" not in st.session_state:
+    st.session_state.last_ticker = ""
+if "last_data" not in st.session_state:
+    st.session_state.last_data = None
+if "last_period" not in st.session_state:
+    st.session_state.last_period = "1y"
+if "screener_df" not in st.session_state:
+    st.session_state.screener_df = None
+if "screener_market" not in st.session_state:
+    st.session_state.screener_market = ""
+
 # ── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -149,6 +161,7 @@ if page == "🔍 Analisi Titolo":
             "Cerca per nome o ticker",
             placeholder="es. Apple · NVDA · Eni · Stellantis · SAP · Ferrari",
             label_visibility="collapsed",
+            value=st.session_state.last_ticker,
         ).strip()
 
         # Suggerimenti live
@@ -171,17 +184,33 @@ if page == "🔍 Analisi Titolo":
                     )
                     ticker_input = choice.split(" — ")[0]
             else:
-                # Assume it's a direct ticker not in dict
                 ticker_input = search_query.upper().strip()
                 st.caption(f"🔍 Ricerca diretta: **{ticker_input}**")
 
     with col_period:
-        period = st.selectbox("Periodo", ["6mo", "1y", "2y", "5y"], index=1, label_visibility="collapsed")
+        period_options = ["6mo", "1y", "2y", "5y"]
+        default_idx = period_options.index(st.session_state.last_period) if st.session_state.last_period in period_options else 1
+        period = st.selectbox("Periodo", period_options, index=default_idx, label_visibility="collapsed")
 
+    # Use cached data if same ticker, else fetch new
     if ticker_input:
-        with st.spinner(f"Carico dati per {ticker_input}..."):
-            data = get_stock_data(ticker_input, period=period)
+        if ticker_input != st.session_state.last_ticker or st.session_state.last_data is None:
+            with st.spinner(f"Carico dati per {ticker_input}..."):
+                data = get_stock_data(ticker_input, period=period)
+            st.session_state.last_data = data
+            st.session_state.last_ticker = ticker_input
+            st.session_state.last_period = period
+        else:
+            data = st.session_state.last_data
+    elif st.session_state.last_data is not None:
+        # Restore last analysis when returning to page
+        data = st.session_state.last_data
+        ticker_input = st.session_state.last_ticker
+        st.info(f"📌 Ultima analisi: **{st.session_state.last_ticker}** — cerca un nuovo titolo per aggiornare.")
+    else:
+        data = None
 
+    if data is not None:
         if "error" in data:
             st.error(f"❌ {data['error']} — Controlla il ticker e riprova.")
         else:
@@ -386,11 +415,25 @@ elif page == "🎯 Screener Scontati":
     if st.button("🚀 Avvia Screener", type="primary", use_container_width=True):
         tickers = MARKET_GROUPS[market]
         st.info(f"Analisi di {len(tickers)} titoli in corso — potrebbe richiedere 1-3 minuti...")
-
         df = run_screener(tickers, min_score=min_score, max_results=max_results)
+        st.session_state.screener_df = df
+        st.session_state.screener_market = market
 
-        if df.empty:
-            st.warning("Nessun titolo trovato con i criteri selezionati. Prova ad abbassare lo score minimo.")
+    # Restore cached screener results
+    df = st.session_state.screener_df
+    if df is None:
+        df_placeholder = True
+    else:
+        df_placeholder = False
+    if not df_placeholder:
+
+        if df is not None and not df.empty:
+            pass
+        if df is None or df.empty:
+            if st.session_state.screener_df is None:
+                st.info("Configura i filtri e clicca Avvia Screener.")
+            else:
+                st.warning("Nessun titolo trovato con i criteri selezionati. Prova ad abbassare lo score minimo.")
         else:
             st.success(f"✅ Trovati {len(df)} titoli con score ≥ {min_score}")
 
