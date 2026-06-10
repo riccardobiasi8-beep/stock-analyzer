@@ -39,43 +39,49 @@ DATI ESTRATTI:
 - Settore: {data.get('sector')}
 - Industria: {data.get('industry')}
 
-REGOLE DI VALIDAZIONE:
-1. P/E: valido 0-100 per aziende normali, 100-500 solo per aziende in recovery. Se negativo o >500 → anomalia
-2. P/B: valido 0.1-20. Se <0 o >50 → anomalia
-3. ROE: valido -50% a +80%. Se >100% o <-100% → probabile errore dati
-4. Margine netto: valido -30% a +50% per la maggior parte dei settori
-5. Debt/Equity: valido 0-5 per aziende normali, banche possono avere valori più alti
-6. Beta: valido 0.1-4.0. Se <0 o >5 → anomalia
-7. Dividend yield: valido 0-15%. Se >20% → sospetto, verifica
-8. RSI: deve essere 0-100. Fuori range → anomalia
-9. Fair Value: non deve essere >3x il prezzo attuale né <0.2x
-10. Upside %: se >200% o <-80% con consensus analisti disponibile → ricalcola dal consensus
-11. Crescita ricavi: valido -50% a +100%. Fuori range → sospetto
+REGOLE DI VALIDAZIONE E CORREZIONE:
+1. P/E: valido 0-100 per aziende normali, 100-500 solo per aziende in recovery con EPS vicino a zero.
+   - Se P/E > 500 o negativo: STIMA il P/E corretto usando (Prezzo / EPS forward) se disponibile, oppure usa la media di settore
+   - Per STM/semiconduttori in ciclo down: P/E 30-60 è normale
+2. P/B: valido 0.1-20. Se <0: usa valore assoluto. Se >50: anomalia, stima da settore
+3. ROE: valido -50% a +80%. Se >100% o <-100%: correggi dividendo per 100 (probabilmente errore di scala)
+4. Margine netto: valido -30% a +50%. Se fuori range: correggi dividendo per 100
+5. Debt/Equity: per aziende tech/industriali valido 0-3. Per banche può essere 10-20 (normale).
+   - Se appare NULL o mancante per azienda con dati finanziari: stima dalla media settore
+6. Beta: valido 0.1-4.0. Se mancante: stima dal settore (tech=1.3, utility=0.5, banche=1.0)
+7. Dividend yield: valido 0-15%. Se >20%: probabilmente errore, correggi dividendo per 10
+8. RSI: deve essere 0-100. Se fuori range: null
+9. Fair Value: non deve essere >2x il prezzo attuale né <0.3x. Se anomalo: usa consensus analisti
+10. Upside %: ricalcola sempre come (target - prezzo) / prezzo * 100
+
+IMPORTANTE: Per ogni campo anomalo NON mettere "N/A" — invece STIMA il valore corretto più plausibile
+basandoti su: settore={data.get('sector')}, prezzo={data.get('current_price')}, EPS stimabile dagli altri dati.
+Usa "N/A" SOLO se è impossibile stimare qualsiasi valore ragionevole.
 
 Rispondi SOLO con un JSON valido in questo formato esatto (nessun testo fuori dal JSON):
 {{
   "validation_score": <numero 0-100 che indica qualità generale dei dati>,
-  "issues_found": [<lista stringhe che descrivono anomalie trovate>],
+  "issues_found": [<lista stringhe che descrivono anomalie trovate e come le hai corrette>],
   "corrections": {{
-    "pe": <valore corretto o null se ok o "N/A" se anomalia>,
-    "pb": <valore corretto o null se ok o "N/A" se anomalia>,
-    "ev_ebitda": <valore corretto o null se ok>,
-    "roe": <valore corretto o null se ok>,
-    "profit_margin": <valore corretto o null se ok>,
-    "revenue_growth": <valore corretto o null se ok>,
-    "debt_equity": <valore corretto o null se ok>,
-    "beta": <valore corretto o null se ok>,
-    "dividend_yield": <valore corretto o null se ok>,
-    "rsi": <valore corretto o null se ok>,
-    "fair_value": <valore corretto o null se ok>,
-    "target_price": <valore corretto o null se ok>,
-    "upside_pct": <valore corretto o null se ok>
+    "pe": <numero corretto, o null se già ok, MAI "N/A" a meno che impossibile stimare>,
+    "pb": <numero corretto o null>,
+    "ev_ebitda": <numero corretto o null>,
+    "roe": <numero corretto o null>,
+    "profit_margin": <numero corretto o null>,
+    "revenue_growth": <numero corretto o null>,
+    "debt_equity": <numero corretto o null se impossibile stimare>,
+    "beta": <numero corretto o null>,
+    "dividend_yield": <numero corretto o null>,
+    "rsi": <numero corretto o null>,
+    "fair_value": <numero corretto o null>,
+    "target_price": <numero corretto o null>,
+    "upside_pct": <numero corretto o null>
   }},
   "data_reliability": "<Alta|Media|Bassa>",
-  "summary": "<una frase in italiano che riassume la qualità dei dati>"
+  "summary": "<una frase in italiano che riassume anomalie trovate e correzioni applicate>"
 }}
 
-Usa null per i campi senza anomalie. Usa "N/A" solo per anomalie gravi che rendono il dato inutilizzabile."""
+Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stringhe "N/A"."""
 
     try:
         response = requests.post(
@@ -120,14 +126,21 @@ Usa null per i campi senza anomalie. Usa "N/A" solo per anomalie gravi che rendo
         corrected_fields = []
         for key, data_key in field_map.items():
             corrected_val = corrections.get(key)
-            if corrected_val is not None:  # null = no correction needed
-                original = corrected_data.get(data_key)
-                if corrected_val == "N/A":
-                    corrected_data[data_key] = None
-                    corrected_fields.append(f"{data_key}: {original} → N/A")
-                elif corrected_val != original:
-                    corrected_data[data_key] = corrected_val
-                    corrected_fields.append(f"{data_key}: {original} → {corrected_val}")
+            if corrected_val is None:
+                continue  # null = no correction needed
+            original = corrected_data.get(data_key)
+            if corrected_val == "N/A":
+                corrected_data[data_key] = None
+                corrected_fields.append(f"{data_key}: {original} → N/A (non stimabile)")
+            else:
+                # Try to convert to float
+                try:
+                    num_val = float(corrected_val)
+                    if num_val != original:
+                        corrected_data[data_key] = round(num_val, 2)
+                        corrected_fields.append(f"{data_key}: {original} → {round(num_val, 2)}")
+                except (TypeError, ValueError):
+                    pass  # ignore non-numeric corrections
 
         # Recalculate upside if target was corrected
         if "target_price" in [c.split(":")[0] for c in corrected_fields]:
