@@ -246,9 +246,9 @@ elif page == "🎯 Screener Scontati":
                     return "background-color: #2d0010; color: #ff4d6d"
                 return ""
 
-            styled = df.style.applymap(color_signal, subset=["Segnale"]) \
-                             .applymap(color_score, subset=["Score"])
-
+          styled = df.style.map(color_signal, subset=["Segnale"]) \
+                 .map(color_score, subset=["Score"])
+        
             st.dataframe(styled, use_container_width=True, height=500)
 
             # Download CSV
