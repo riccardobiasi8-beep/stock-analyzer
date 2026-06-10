@@ -127,37 +127,93 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         if roe and abs(roe) > 5: roe = None  # >500% ROE is a data error
         if debt_equity and debt_equity < 0: debt_equity = None
 
-        # --- DCF Fair Value (simplified) ---
-        eps = info.get("trailingEps", None)
-        growth_rate = revenue_growth if revenue_growth else 0.05
-        growth_rate = min(max(growth_rate, 0.0), 0.30)
-        discount_rate = 0.10
-        fair_value = None
-        if eps and eps > 0:
-            projected_eps = eps * (1 + growth_rate) ** 5
-            terminal_value = projected_eps * 15
-            fair_value = terminal_value / (1 + discount_rate) ** 5
+        # --- DCF Fair Value (simplified, capped) ---
+        try:
+            eps = info.get("trailingEps", None)
+            forward_eps = info.get("forwardEps", None)
+            growth_rate = float(revenue_growth) if revenue_growth else 0.05
+            growth_rate = min(max(growth_rate, 0.0), 0.20)
+            fair_value = None
+            if eps and float(eps) > 0:
+                projected_eps = float(eps) * (1 + growth_rate) ** 5
+                terminal_value = projected_eps * 15
+                fair_value = terminal_value / (1.10) ** 5
+                fair_value = min(fair_value, current_price * 3.0)
+        except Exception:
+            eps = None
+            fair_value = None
 
-        # --- Entry / Target / Stop ---
-        entry_price = None
-        target_price = None
-        stop_loss = None
+        # --- Sector average P/E ---
+        sector_pe_avg = {
+            "Technology": 28, "Healthcare": 22, "Financial Services": 14,
+            "Consumer Cyclical": 20, "Consumer Defensive": 22, "Energy": 12,
+            "Utilities": 18, "Industrials": 20, "Basic Materials": 15,
+            "Real Estate": 25, "Communication Services": 16,
+        }.get(str(sector), 18)
 
-        if ma50 and rsi_val < 50:
-            entry_price = round(current_price * 0.98, 2)  # slight dip entry
-        else:
-            entry_price = round(current_price, 2)
+        # Relative valuation vs sector P/E
+        relative_value = None
+        try:
+            if eps and float(eps) > 0 and pe:
+                relative_value = round(float(eps) * sector_pe_avg, 2)
+                relative_value = min(relative_value, current_price * 2.5)
+        except Exception:
+            relative_value = None
 
-        if fair_value and fair_value > current_price:
-            target_price = round(fair_value, 2)
-        elif analyst_target and analyst_target > current_price:
-            target_price = round(analyst_target, 2)
-        elif resistance > current_price:
-            target_price = round(resistance, 2)
-        else:
-            target_price = round(current_price * 1.15, 2)
+        # --- Multi-source target price ---
+        try:
+            targets = []
+            weights = []
 
-        stop_loss = round(current_price * 0.92, 2)  # 8% stop loss
+            # 1. Analyst consensus
+            if analyst_target:
+                at = float(analyst_target)
+                if 0.4 * current_price < at < 2.0 * current_price:
+                    targets.append(at)
+                    weights.append(0.45)
+
+            # 2. 52-week high
+            try:
+                high_52w = float(hist.tail(252)["High"].max())
+                if high_52w > current_price:
+                    targets.append(high_52w)
+                    weights.append(0.20)
+            except Exception:
+                pass
+
+            # 3. Relative valuation
+            if relative_value and relative_value > current_price * 0.8:
+                targets.append(min(float(relative_value), current_price * 1.5))
+                weights.append(0.20)
+
+            # 4. DCF
+            if fair_value and float(fair_value) > current_price:
+                targets.append(min(float(fair_value), current_price * 1.5))
+                weights.append(0.15)
+
+            # Fallback
+            if not targets:
+                targets.append(current_price * 1.12)
+                weights.append(1.0)
+
+            total_w = sum(weights)
+            target_price = round(sum(t * w for t, w in zip(targets, weights)) / total_w, 2)
+            target_price = max(target_price, round(current_price * 1.05, 2))
+            target_price = min(target_price, round(current_price * 1.50, 2))
+        except Exception:
+            target_price = round(current_price * 1.12, 2)
+
+        # --- Entry ---
+        entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
+
+        # --- Dynamic stop loss ---
+        try:
+            atr_stop = float((hist["High"] - hist["Low"]).tail(14).mean())
+            stop_loss = round(current_price - (atr_stop * 2), 2)
+            stop_loss = max(stop_loss, round(current_price * 0.88, 2))
+            stop_loss = min(stop_loss, round(current_price * 0.95, 2))
+        except Exception:
+            stop_loss = round(current_price * 0.92, 2)
 
         # --- Composite score (0-100) ---
         score = 50  # neutral base
