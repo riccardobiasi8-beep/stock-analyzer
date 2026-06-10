@@ -109,6 +109,13 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 *{font-family:'Inter',-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif;box-sizing:border-box}
+header[data-testid="stHeader"]{background:#000000!important;border-bottom:none!important}
+#MainMenu{display:none!important}
+header{visibility:hidden!important;height:0!important}
+.stDeployButton{display:none!important}
+[data-testid="stToolbar"]{display:none!important}
+[data-testid="stDecoration"]{display:none!important}
+[data-testid="stStatusWidget"]{display:none!important}
 .stApp,.stApp>div{background:#000000!important}
 .main .block-container{padding:1.5rem 1.8rem!important;max-width:1200px!important}
 section[data-testid="stSidebar"]{background:#1c1c1e!important;border-right:0.5px solid #2c2c2e!important}
