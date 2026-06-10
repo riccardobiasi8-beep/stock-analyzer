@@ -4,17 +4,38 @@ from modules.analyzer import get_stock_data
 import streamlit as st
 
 # --- Tickers disponibili su Trade Republic ---
-# US S&P500 large cap (subset rappresentativo, disponibili su TR via listing europeo)
+# US S&P500 - ampia selezione disponibile su Trade Republic tramite listing europeo
 SP500_TOP = [
-    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "BRK-B",
-    "LLY", "AVGO", "JPM", "UNH", "XOM", "V", "MA", "PG", "JNJ", "HD",
-    "MRK", "ABBV", "CVX", "COST", "PEP", "KO", "WMT", "CRM", "BAC",
-    "ACN", "MCD", "TMO", "CSCO", "ABT", "NFLX", "ADBE", "AMD", "TXN",
-    "NEE", "PM", "DHR", "QCOM", "UNP", "RTX", "HON", "IBM", "GE",
-    "SBUX", "AMAT", "CAT", "INTU", "NOW", "AMGN", "PFE", "GILD",
-    "DE", "PYPL", "DIS", "BKNG", "PANW", "LRCX", "ADI", "MELI",
-    "INTC", "F", "GM", "T", "VZ", "WFC", "GS", "MS", "C", "AXP",
-    "SHOP", "UBER", "LYFT", "SNAP", "PINS", "RBLX", "PLTR", "SOFI",
+    # Mega cap tech
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AVGO",
+    # Financials
+    "JPM", "BAC", "WFC", "GS", "MS", "C", "AXP", "BLK", "SPGI", "MCO",
+    "CME", "ICE", "BX", "KKR",
+    # Healthcare
+    "UNH", "JNJ", "LLY", "MRK", "ABBV", "PFE", "AMGN", "GILD", "BIIB",
+    "MRNA", "REGN", "VRTX", "TMO", "ABT", "DHR", "SYK", "MDT", "BSX",
+    "ISRG", "IDXX", "ZTS", "CI", "CVS", "HCA", "ELV",
+    # Consumer
+    "PG", "KO", "PEP", "WMT", "COST", "MCD", "SBUX", "NKE", "TGT",
+    "DIS", "NFLX", "BKNG", "MAR", "HLT", "ABNB", "DASH",
+    # Energy
+    "XOM", "CVX", "COP", "OXY", "SLB", "HAL", "MPC", "PSX", "VLO",
+    # Industrials
+    "GE", "HON", "CAT", "DE", "RTX", "LMT", "NOC", "GD", "BA",
+    "UPS", "FDX", "DAL", "UAL",
+    # Tech
+    "CRM", "ACN", "IBM", "CSCO", "ORCL", "ADBE", "INTU", "NOW",
+    "AMAT", "LRCX", "ADI", "TXN", "QCOM", "AMD", "INTC",
+    "PANW", "PLTR", "SHOP", "UBER",
+    # Utilities / REITs
+    "NEE", "DUK", "SO", "AMT", "PLD", "EQIX",
+    # Materials
+    "LIN", "NEM", "FCX", "DOW", "DD",
+    # Telecom
+    "T", "VZ", "PM", "MO",
+    # Other
+    "V", "MA", "PYPL", "BRK-B", "UNP", "HD", "LOW", "F", "GM",
+    "SNAP", "PINS", "RBLX", "SOFI", "COIN", "SPOT", "MELI", "NVO",
 ]
 
 # DAX (Germania - Xetra, tutti disponibili su TR)
@@ -68,9 +89,15 @@ def run_screener(tickers: list, min_score: int = 60, max_results: int = 20) -> p
     progress = st.progress(0, text="Analisi in corso...")
     total = len(tickers)
 
+    import time
     for i, ticker in enumerate(tickers):
         progress.progress((i + 1) / total, text=f"Analisi {ticker}... ({i+1}/{total})")
-        data = get_stock_data(ticker, period="6mo")
+        try:
+            data = get_stock_data(ticker, period="1y")
+            time.sleep(0.3)  # avoid Yahoo Finance rate limiting
+        except Exception:
+            time.sleep(1)
+            continue
         if "error" not in data:
             results.append({
                 "Ticker": data["ticker"],
