@@ -4,7 +4,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 from modules.analyzer import get_stock_data
 from modules.screener import run_screener, MARKET_GROUPS
-from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context
+from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context, get_full_sentiment
 import time
 
 # ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
@@ -331,17 +331,101 @@ if page == "🔍 Analisi Titolo":
                         st.metric("Market Cap", mc_str)
 
             with tab4:
-                sentiment = get_news_sentiment(ticker_input)
-                st.subheader(f"Sentiment news: {sentiment['label']} (score: {sentiment['score']})")
-                for art in sentiment["articles"]:
-                    color = "#00d09c" if art["score"] > 0.05 else ("#ff4d6d" if art["score"] < -0.05 else "#8892a4")
-                    st.markdown(f"<span style='color:{color}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*",
-                                unsafe_allow_html=True)
+                with st.spinner("Carico sentiment completo..."):
+                    sent = get_full_sentiment(ticker_input, data.get("name", ""))
+
+                # ── Score globale ──
+                sc = sent["score"]
+                sc_color = "#00d09c" if sc >= 65 else ("#f0b429" if sc >= 45 else "#ff4d6d")
+                st.markdown(f"""
+<div style='background:#1c1f2e;border-radius:12px;padding:20px;border:1px solid {sc_color};margin-bottom:20px'>
+    <span style='font-size:1.4rem;font-weight:800;color:{sc_color}'>{sent["overall"]}</span>
+    <span style='color:#8892a4;margin-left:16px'>Score sentiment: <b style='color:#e0e6f0'>{sc}/100</b></span>
+    <div style='background:#2d3147;border-radius:4px;height:8px;margin-top:10px'>
+        <div style='background:{sc_color};width:{sc}%;height:8px;border-radius:4px'></div>
+    </div>
+</div>""", unsafe_allow_html=True)
+
+                s1, s2 = st.columns(2)
+
+                with s1:
+                    # Analyst consensus
+                    an = sent["analyst"]
+                    st.markdown("**📊 Consensus Analisti**")
+                    st.markdown(f"{an.get('consensus_label','N/A')} — {an.get('n_analysts',0)} analisti")
+                    if an.get("target_mean"):
+                        st.markdown(f"Target medio: **{an['target_mean']}** | Range: {an.get('target_low','?')} – {an.get('target_high','?')}")
+                        if an.get("upside"):
+                            up_col = "#00d09c" if an["upside"] > 0 else "#ff4d6d"
+                            st.markdown(f"Upside da consensus: <span style='color:{up_col}'><b>{an['upside']}%</b></span>", unsafe_allow_html=True)
+                    st.divider()
+
+                    # Short interest
+                    sh = sent["short"]
+                    st.markdown("**🩳 Short Interest**")
+                    if sh.get("short_pct"):
+                        sh_col = "#ff4d6d" if sh["short_pct"] > 15 else ("#f0b429" if sh["short_pct"] > 8 else "#00d09c")
+                        st.markdown(f"<span style='color:{sh_col}'>{sh['short_pct']}% delle azioni shortate</span>", unsafe_allow_html=True)
+                        if sh.get("short_ratio"): st.markdown(f"Days to cover: {sh['short_ratio']} giorni")
+                        if sh.get("change_pct"):
+                            ch_col = "#ff4d6d" if sh["change_pct"] > 0 else "#00d09c"
+                            st.markdown(f"Variazione mese: <span style='color:{ch_col}'>{sh['change_pct']:+.1f}%</span>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("N/A")
+                    st.markdown(sh.get("label",""))
+                    st.divider()
+
+                    # Options
+                    op = sent["options"]
+                    st.markdown("**⚙️ Options Put/Call Ratio**")
+                    st.markdown(op.get("label", "N/A"))
+                    if op.get("calls_volume"):
+                        st.markdown(f"Call vol: {op['calls_volume']:,} · Put vol: {op['puts_volume']:,}")
+
+                with s2:
+                    # Insider trading
+                    ins = sent["insider"]
+                    st.markdown("**👔 Insider Trading (ultimi movimenti)**")
+                    st.markdown(ins.get("label","N/A"))
+                    if ins.get("transactions"):
+                        for tx in ins["transactions"][:4]:
+                            v = f"${tx['value']:,}" if tx.get("value") else ""
+                            st.markdown(f"<small>{tx['direction']} · {tx['name']} · {tx['date']} {v}</small>", unsafe_allow_html=True)
+                    st.divider()
+
+                    # Earnings surprise
+                    ea = sent["earnings"]
+                    st.markdown("**📈 Earnings Surprise (ultimi 4 trimestri)**")
+                    st.markdown(ea.get("label","N/A"))
+                    if ea.get("surprises"):
+                        cols_ea = st.columns(len(ea["surprises"]))
+                        for i, s in enumerate(ea["surprises"]):
+                            c = "#00d09c" if s > 0 else "#ff4d6d"
+                            cols_ea[i].markdown(f"<div style='text-align:center;color:{c}'><b>{s:+.1f}%</b><br><small>Q{i+1}</small></div>", unsafe_allow_html=True)
+                    if ea.get("next_earnings"): st.markdown(f"Prossimi earnings: **{ea['next_earnings']}**")
+                    st.divider()
+
+                    # Reddit
+                    rd = sent["reddit"]
+                    st.markdown("**💬 Reddit Mentions**")
+                    st.markdown(rd.get("label","N/A"))
+                    if rd.get("posts"):
+                        for p in rd["posts"][:3]:
+                            rc = "#00d09c" if p["sentiment"] > 0.05 else ("#ff4d6d" if p["sentiment"] < -0.05 else "#8892a4")
+                            st.markdown(f"<span style='color:{rc}'>●</span> <small>[{p['title']}]({p['url']}) r/{p['subreddit']}</small>", unsafe_allow_html=True)
+
+                st.divider()
+                # News
+                st.markdown("**📰 News recenti**")
+                news = sent["news"]
+                for art in news.get("articles", []):
+                    nc = "#00d09c" if art["score"] > 0.05 else ("#ff4d6d" if art["score"] < -0.05 else "#8892a4")
+                    st.markdown(f"<span style='color:{nc}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*", unsafe_allow_html=True)
 
             # ── AI Summary ──────────────────────────────────────────────────
             st.divider()
             st.subheader("🤖 Analisi AI — Compra o No?")
-            sentiment_for_ai = get_news_sentiment(ticker_input)
+            sentiment_for_ai = sent if "sent" in dir() else get_news_sentiment(ticker_input)
 
             if st.button("Genera analisi AI", type="primary"):
                 with st.spinner("Claude sta analizzando il titolo..."):
@@ -356,7 +440,13 @@ Dati:
 - ROE: {data['roe']}% | Margine netto: {data['profit_margin']}% | Crescita ricavi: {data['revenue_growth']}%
 - Debt/Equity: {data['debt_equity']} | Beta: {data['beta']}
 - Settore: {data['sector']} — {data['industry']}
-- Sentiment news: {sentiment_for_ai['label']} (score: {sentiment_for_ai['score']})
+- Sentiment news: {sentiment_for_ai.get('news', {}).get('label', 'N/A')}
+- Consensus analisti: {sentiment_for_ai.get('analyst', {}).get('consensus_label', 'N/A')} | Target medio: {sentiment_for_ai.get('analyst', {}).get('target_mean', 'N/A')}
+- Short interest: {sentiment_for_ai.get('short', {}).get('short_pct', 'N/A')}%
+- Insider: {sentiment_for_ai.get('insider', {}).get('label', 'N/A')}
+- Earnings surprise medio: {sentiment_for_ai.get('earnings', {}).get('avg_surprise', 'N/A')}%
+- Options put/call: {sentiment_for_ai.get('options', {}).get('put_call_ratio', 'N/A')}
+- Reddit: {sentiment_for_ai.get('reddit', {}).get('label', 'N/A')}
 
 Scrivi in italiano un'analisi di 150-200 parole strutturata cosi:
 1. **Fondamentali**: commenta multipli di valutazione e salute finanziaria
