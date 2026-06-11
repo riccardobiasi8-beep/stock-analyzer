@@ -780,15 +780,19 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                         _cell('Valutazione', 'EVITA', '#ff453a'),
                     ]
                 else:
+                    # BUY or HOLD
+                    is_hold = data.get('score', 50) < 65
+                    entry_val = fmt(data['entry_price'], cur) if data.get('entry_price') else '— (attendi)'
+                    entry_color = '#636366' if not data.get('entry_price') else '#ffffff'
                     _cells = [
-                        _cell('Entry', fmt(data['entry_price'], cur)),
+                        _cell('Entry', entry_val, entry_color),
                         _cell('Target', fmt(data['target_price'], cur), '#ff9f0a', 'target_price'),
                         _cell('Stop Loss', fmt(data['stop_loss'], cur), '#ff453a'),
                         _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
                         _cell('Upside lordo', upside_str, '#30d158', 'upside_pct'),
                         _cell('Netto (-26%)', netg_str, '#30d158'),
-                        _cell('Rend. annuo', annr_str, '#bf5af2'),
-                        _cell('Tempo', t_label[:25] if t_label else '—', '#0a84ff'),
+                        _cell('Rend. annuo', annr_str if not is_hold else '—', '#bf5af2' if not is_hold else '#636366'),
+                        _cell('Tempo', t_label[:25] if t_label and not is_hold else ('Attendi segnale' if is_hold else '—'), '#0a84ff'),
                     ]
                 _grid = ''.join(_cells)
                 st.markdown(
