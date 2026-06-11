@@ -68,12 +68,12 @@ def _call_groq(prompt: str, api_key: str, max_tokens: int = 800) -> str:
 
 
 def _call_ai(prompt: str, gemini_key: str, groq_key: str, max_tokens: int = 800) -> str:
-    """Try Gemini first, fallback to Groq if quota exceeded."""
+    """Try Gemini first, always fallback to Groq if Gemini fails for any reason."""
     try:
         return _call_gemini(prompt, gemini_key, max_tokens)
     except Exception as e:
-        if groq_key and any(k in str(e).lower() for k in ["quota", "rate", "falliti", "429"]):
-            print(f"[Gemini→Groq] Switching to Groq: {str(e)[:60]}")
+        print(f"[Gemini→Groq] Gemini failed ({str(e)[:60]}), trying Groq...")
+        if groq_key:
             return _call_groq(prompt, groq_key, max_tokens)
         raise
 
