@@ -1,14 +1,14 @@
 import requests
 import json
 
-GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "gemini-pro",
+GEMINI_ENDPOINTS = [
+    ("gemini-2.0-flash-lite", "v1beta"),
+    ("gemini-2.0-flash", "v1beta"),
+    ("gemini-2.5-flash", "v1beta"),
+    ("gemini-2.0-flash-lite-001", "v1beta"),
+    ("gemini-2.0-flash-001", "v1beta"),
 ]
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_BASE = "https://generativelanguage.googleapis.com/{version}/models/{model}:generateContent"
 
 
 def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800, use_search: bool = False) -> str:
@@ -20,10 +20,10 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800, use_search: b
         payload["tools"] = [{"google_search_retrieval": {}}]
 
     last_error = None
-    for model in GEMINI_MODELS:
+    for model, version in GEMINI_ENDPOINTS:
         try:
             response = requests.post(
-                f"{GEMINI_BASE.format(model=model)}?key={api_key}",
+                f"{GEMINI_BASE.format(version=version, model=model)}?key={api_key}",
                 headers={"Content-Type": "application/json"},
                 json=payload,
                 timeout=25
@@ -31,7 +31,7 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800, use_search: b
             result = response.json()
             if "error" in result:
                 last_error = result["error"].get("message", "error")
-                print(f"[Gemini] Model {model} failed: {last_error[:80]}")
+                print(f"[Gemini] {model}/{version} failed: {str(last_error)[:60]}")
                 continue
             candidates = result.get("candidates", [])
             if not candidates:
@@ -43,13 +43,13 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800, use_search: b
             if not parts:
                 last_error = "empty parts"
                 continue
-            print(f"[Gemini] OK with model: {model}")
+            print(f"[Gemini] OK: {model}/{version}")
             return parts[0].get("text", "").strip()
         except Exception as e:
             if "SAFETY" in str(e):
                 raise
             last_error = str(e)
-            print(f"[Gemini] Model {model} exception: {last_error[:80]}")
+            print(f"[Gemini] {model}/{version} exception: {str(last_error)[:60]}")
             continue
     raise Exception(f"Tutti i modelli falliti. Ultimo: {last_error}")
 
