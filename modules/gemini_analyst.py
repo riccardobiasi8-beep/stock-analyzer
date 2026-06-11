@@ -19,7 +19,30 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800) -> str:
         timeout=25
     )
     result = response.json()
-    return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    # Debug: handle all possible response structures
+    if "error" in result:
+        raise Exception(f"Gemini API error: {result['error'].get('message', result['error'])}")
+
+    candidates = result.get("candidates", [])
+    if not candidates:
+        # Check for prompt feedback (safety block)
+        feedback = result.get("promptFeedback", {})
+        block_reason = feedback.get("blockReason", "unknown")
+        raise Exception(f"Nessuna risposta da Gemini (bloccato: {block_reason})")
+
+    candidate = candidates[0]
+    # Check finish reason
+    finish_reason = candidate.get("finishReason", "")
+    if finish_reason == "SAFETY":
+        raise Exception("Risposta bloccata dai filtri di sicurezza Gemini")
+
+    content = candidate.get("content", {})
+    parts = content.get("parts", [])
+    if not parts:
+        raise Exception("Risposta Gemini vuota")
+
+    return parts[0].get("text", "").strip()
 
 
 def analyze_stock(data: dict, api_key: str) -> str:
@@ -37,7 +60,8 @@ Sii diretto, usa i numeri, niente giri di parole."""
     try:
         return _call_gemini(prompt, api_key, 300)
     except Exception as e:
-        return f"Analisi AI non disponibile: {e}"
+        import traceback; print(f"Gemini analyze_stock error: {e}\n{traceback.format_exc()}")
+        return None
 
 
 def reason_time_to_target(data: dict, api_key: str) -> str:
@@ -89,7 +113,8 @@ Massimo 100 parole. Sii specifico, non generico."""
     try:
         return _call_gemini(prompt, api_key, 400)
     except Exception as e:
-        return f"Stima temporale AI non disponibile: {e}"
+        import traceback; print(f"Gemini reason_time error: {e}\n{traceback.format_exc()}")
+        return None
 
 
 def analyze_sentiment_narrative(data: dict, sent: dict, api_key: str) -> str:
@@ -127,7 +152,8 @@ Sii specifico con i numeri. Spiega i paradossi come farebbe un analista senior."
     try:
         return _call_gemini(prompt, api_key, 600)
     except Exception as e:
-        return f"Analisi sentiment non disponibile: {e}"
+        import traceback; print(f"Gemini sentiment error: {e}\n{traceback.format_exc()}")
+        return None
 
 
 def validate_and_flag(data: dict, api_key: str) -> dict:
