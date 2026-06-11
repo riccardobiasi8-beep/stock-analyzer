@@ -1,18 +1,38 @@
 import json
 import requests
 
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+
+
+def _call_gemini(prompt: str, api_key: str, max_tokens: int = 1200, use_search: bool = False) -> str:
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens}
+    }
+    if use_search:
+        payload["tools"] = [{"google_search_retrieval": {}}]
+    
+    response = requests.post(
+        f"{GEMINI_URL}?key={api_key}",
+        headers={"Content-Type": "application/json"},
+        json=payload,
+        timeout=30
+    )
+    result = response.json()
+    if "error" in result:
+        raise Exception(result["error"].get("message", "Gemini error"))
+    candidates = result.get("candidates", [])
+    if not candidates:
+        raise Exception("Nessuna risposta da Gemini")
+    if candidates[0].get("finishReason") == "SAFETY":
+        raise Exception("Bloccato da filtri sicurezza")
+    return candidates[0]["content"]["parts"][0]["text"].strip()
+
 
 def validate_stock_data(data: dict, gemini_key: str) -> dict:
-    """
-    Uses Gemini to:
-    1. Estimate missing fields with reasoning
-    2. Correct anomalous values with reasoning
-    3. Validate calculated metrics (target, stop, fair value)
-    Returns data with corrections + per-field reasoning for tooltips.
-    """
     if not gemini_key:
         return {**data, "validation": {
-            "status": "skipped", "issues": [], "score": None,
+            "status": "skipped", "score": None, "issues": [],
             "corrected_fields": [], "field_reasoning": {},
             "reliability": "N/A", "summary": ""
         }}
@@ -20,126 +40,99 @@ def validate_stock_data(data: dict, gemini_key: str) -> dict:
     missing = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
                "revenue_growth","debt_equity","beta","dividend_yield"]
                if data.get(k) is None]
-    available = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
-                 "revenue_growth","debt_equity","beta","dividend_yield"]
-                 if data.get(k) is not None]
 
-    sector = data.get('sector','N/A') or 'N/A'
-    sector_note = ""
-    if sector in [None, 'N/A', '']:
-        sector_note = f"""NOTA IMPORTANTE: Settore non disponibile da Yahoo Finance.
-Identifica il settore dal ticker {data.get('ticker','?')} e nome {data.get('name','?')}.
-Esempi: ticker .F=Francoforte, .MI=Milano, .PA=Parigi, .L=Londra.
-Usa la tua conoscenza del mercato per identificare settore e applicare stime appropriate."""
+    ticker = data.get('ticker', '')
+    name = data.get('name', ticker)
+    sector = data.get('sector') or 'N/A'
+    price = data.get('current_price')
+    currency = data.get('currency', 'USD')
 
-    prompt = f"""Sei un analista finanziario senior di Goldman Sachs con accesso a Google Search.
+    try:
+        # ── STEP 1: Search for real data ────────────────────────────────
+        if missing:
+            search_prompt = f"""Search Google for current financial data for {name} ({ticker}).
+I need these specific metrics: {', '.join(missing)}
+Also find: sector, P/E ratio, ROE, profit margin, debt/equity, beta, dividend yield.
+Return a summary of the real data you find. Be specific with numbers."""
 
-STEP 1 — CERCA I DATI REALI:
-Cerca su Google i dati fondamentali aggiornati per {data.get('name','?')} ({data.get('ticker','?')}).
-Query suggerite:
-- "{data.get('ticker','?')} P/E ratio 2024 2025"
-- "{data.get('name','?')} ROE profit margin annual report"
-- "{data.get('ticker','?')} fundamental data Yahoo Finance"
-- "{data.get('name','?')} settore industria borsa"
+            try:
+                search_result = _call_gemini(search_prompt, gemini_key, 600, use_search=True)
+            except Exception:
+                search_result = f"Ticker {ticker}, nome {name}, prezzo {price} {currency}, settore {sector}"
+        else:
+            search_result = f"Dati già disponibili da Yahoo Finance per {ticker}"
 
-DATI GIÀ DISPONIBILI (da Yahoo Finance, potrebbero essere incompleti):
-- Settore: {sector} | Industria: {data.get('industry','N/A')}
-- Prezzo: {data.get('current_price')} {data.get('currency','USD')} | Market cap: {data.get('market_cap')}
+        # ── STEP 2: Validate and format as JSON ─────────────────────────
+        json_prompt = f"""Sei un analista finanziario. Hai cercato dati per {name} ({ticker}).
+
+RISULTATI RICERCA:
+{search_result}
+
+DATI YAHOO FINANCE (potrebbero essere incompleti/errati):
+- Prezzo: {price} {currency} | Settore: {sector}
 - P/E: {data.get('pe')} | P/B: {data.get('pb')} | EV/EBITDA: {data.get('ev_ebitda')}
 - ROE: {data.get('roe')}% | Margine netto: {data.get('profit_margin')}% | Crescita ricavi: {data.get('revenue_growth')}%
 - Debt/Equity: {data.get('debt_equity')} | Beta: {data.get('beta')} | Dividend yield: {data.get('dividend_yield')}%
-- RSI: {data.get('rsi')}
-- Target calcolato: {data.get('target_price')} | Stop calcolato: {data.get('stop_loss')} | Fair Value: {data.get('fair_value')}
-- Consensus analisti: {data.get('analyst_target')} ({data.get('n_analysts',0)} analisti) | Upside: {data.get('upside_pct')}%
-- ATR: {data.get('atr')} | Tempo stimato: {data.get('time_label')}
+- Target: {data.get('target_price')} | Stop: {data.get('stop_loss')} | Fair Value: {data.get('fair_value')}
 
-{sector_note}
-CAMPI MANCANTI ({len(missing)} su 9): {missing if missing else 'nessuno'}
-CAMPI DISPONIBILI: {available if available else 'nessuno — cerca tutto su Google'}
+REGOLE CORREZIONE:
+- ROE da Yahoo è in decimali (0.142 = 14.2%) — se già convertito in % non dividere
+- Dividend yield da Yahoo è in decimali (0.005 = 0.5%) — controlla scala
+- P/E anomalo (>500 o negativo): correggi
+- Se un campo era None/mancante: fornisci il valore trovato in ricerca o stima dal settore
 
-STEP 2 — COMPILA I DATI:
-Usa i dati trovati su Google per compilare i campi mancanti con valori REALI.
-Solo se non trovi dati reali, usa stime basate sul settore.
-
-STEP 3 — CORREGGI ANOMALIE:
-- ROE >150% o <-150%: errore di scala Yahoo, dividi per 100
-- Dividend yield >20%: errore di scala, dividi per 10
-- P/E <0 con azienda redditizia: usa valore assoluto
-- Verifica che target e stop loss siano ragionevoli
-
-Rispondi SOLO con JSON valido:
+Rispondi SOLO con questo JSON (nessun testo fuori):
 {{
   "validation_score": <0-100>,
   "corrections": {{
-    "pe": <numero reale trovato o stimato, null se già ok>,
+    "pe": <numero o null se già corretto>,
     "pb": <numero o null>,
     "ev_ebitda": <numero o null>,
-    "roe": <numero percentuale es. 14.5 per 14.5%, null se ok>,
+    "roe": <numero percentuale es. 14.2, null se ok>,
     "profit_margin": <numero percentuale, null se ok>,
     "revenue_growth": <numero percentuale, null se ok>,
     "debt_equity": <numero o null>,
     "beta": <numero o null>,
     "dividend_yield": <numero percentuale, null se ok>,
-    "rsi": <numero o null>,
+    "rsi": null,
     "fair_value": <numero o null>,
     "target_price": <numero o null>,
     "stop_loss": <numero o null>,
     "upside_pct": <numero o null>
   }},
   "field_reasoning": {{
-    "pe": "<trovato X su Google / stimato X perché...>",
+    "pe": "<spiegazione o null>",
     "pb": null,
     "ev_ebitda": null,
-    "roe": "<spiegazione>",
+    "roe": "<spiegazione o null>",
     "profit_margin": null,
     "revenue_growth": null,
-    "debt_equity": "<spiegazione>",
-    "beta": "<spiegazione>",
-    "dividend_yield": "<spiegazione>",
-    "rsi": null,
-    "fair_value": "<spiegazione>",
-    "target_price": "<spiegazione>",
+    "debt_equity": "<spiegazione o null>",
+    "beta": "<spiegazione o null>",
+    "dividend_yield": "<spiegazione o null>",
+    "fair_value": null,
+    "target_price": null,
     "stop_loss": null,
     "upside_pct": null
   }},
   "data_reliability": "<Alta|Media|Bassa>",
-  "summary": "<frase italiana: dati trovati su Google + correzioni applicate>"
-}}
+  "summary": "<frase italiana con i dati trovati e corretti>"
+}}"""
 
-"""
+        raw = _call_gemini(json_prompt, gemini_key, 1000, use_search=False)
 
-    try:
-        response = requests.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}",
-            headers={"Content-Type": "application/json"},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1200},
-                "tools": [{"google_search_retrieval": {}}]
-            },
-            timeout=30
-        )
+        # Clean JSON
+        if "```json" in raw:
+            raw = raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw:
+            raw = raw.split("```")[1].split("```")[0].strip()
 
-        result = response.json()
-        if "error" in result:
-            raise Exception(result["error"].get("message", "Gemini error"))
-        candidates = result.get("candidates", [])
-        if not candidates:
-            raise Exception("Nessuna risposta da Gemini")
+        # Fix common JSON issues
+        raw = raw.replace(": null,", ": null,")
+        
+        validation = json.loads(raw)
 
-        finish_reason = candidates[0].get("finishReason", "")
-        if finish_reason == "SAFETY":
-            raise Exception("Risposta bloccata da filtri sicurezza")
-
-        raw_text = candidates[0]["content"]["parts"][0]["text"].strip()
-        if "```json" in raw_text:
-            raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in raw_text:
-            raw_text = raw_text.split("```")[1].split("```")[0].strip()
-
-        validation = json.loads(raw_text)
-
-        # Apply corrections to data
+        # ── Apply corrections ────────────────────────────────────────────
         corrected_data = dict(data)
         corrections = validation.get("corrections", {})
         field_reasoning = validation.get("field_reasoning", {})
@@ -161,16 +154,15 @@ Rispondi SOLO con JSON valido:
                 continue
             original = corrected_data.get(data_key)
             try:
-                num_val = float(corrected_val)
+                num_val = round(float(corrected_val), 2)
                 if original is None or abs(num_val - float(original)) > 0.001:
-                    corrected_data[data_key] = round(num_val, 2)
-                    corrected_fields.append(f"{data_key}: {original} → {round(num_val, 2)}")
+                    corrected_data[data_key] = num_val
+                    corrected_fields.append(f"{data_key}: {original} → {num_val}")
             except (TypeError, ValueError):
                 pass
 
-        # Recalculate upside if target was corrected
-        corrected_keys = [c.split(":")[0].strip() for c in corrected_fields]
-        if "target_price" in corrected_keys:
+        # Recalculate upside if target changed
+        if any("target_price" in c for c in corrected_fields):
             tp = corrected_data.get("target_price")
             cp = corrected_data.get("current_price")
             if tp and cp and cp > 0:
@@ -182,26 +174,27 @@ Rispondi SOLO con JSON valido:
             "status": "completed",
             "score": validation.get("validation_score", 100),
             "reliability": validation.get("data_reliability", "Media"),
-            "issues": [r for r in field_reasoning.values() if r],
+            "issues": [v for v in field_reasoning.values() if v],
             "corrected_fields": corrected_fields,
             "field_reasoning": {k: v for k, v in field_reasoning.items() if v},
             "summary": validation.get("summary", ""),
         }
 
+        print(f"[Validator] {ticker}: {len(corrected_fields)} corrections: {corrected_fields}")
         return corrected_data
 
     except Exception as e:
         import traceback
-        print(f"[Validator error] {e}\n{traceback.format_exc()}")
+        print(f"[Validator error] {ticker}: {e}\n{traceback.format_exc()}")
         return {
             **data,
             "validation": {
                 "status": "error",
                 "score": None,
                 "reliability": "N/A",
-                "issues": [f"Errore validazione: {str(e)}"],
+                "issues": [str(e)],
                 "corrected_fields": [],
                 "field_reasoning": {},
-                "summary": "Validazione non disponibile",
+                "summary": f"Errore validazione: {str(e)[:100]}",
             }
         }
