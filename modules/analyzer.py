@@ -330,10 +330,6 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         else:
             signal = "🔴 SELL / AVOID"
 
-        # --- Coherence check: se prezzo > fair value, declassa segnale ---
-        # Non ha senso dare BUY se il titolo quota sopra il suo fair value
-        # a meno che l'upside tecnico non sia molto forte (score >= 80)
-
         # ══════════════════════════════════════════════════════════════════
         # MODELLO PREVISIONALE TEMPORALE — 4 METODI PROFESSIONALI
         # ══════════════════════════════════════════════════════════════════
@@ -497,16 +493,51 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             time_category = "N/A"
             time_detail = ""
 
-        # ── Signal coherence: declassa se prezzo > fair value ────────────
-        if fair_value and current_price > fair_value * 1.05 and score < 80:
-            # Titolo sopravvalutato rispetto al fair value — non dare BUY convinto
+        # ══════════════════════════════════════════════════════════════════
+        # REGOLE DI COERENZA FINALE
+        # ══════════════════════════════════════════════════════════════════
+
+        # REGOLA 1: Se AVOID/SELL → niente target rialzista, mostra downside
+        is_avoid = score < 45
+        if is_avoid:
+            # Non mostrare una strategia di acquisto rialzista
+            entry_price = None
+            # Calcola downside potenziale invece di upside
+            try:
+                low_52w = float(hist.tail(252)["Low"].min())
+                downside_target = round(max(low_52w, current_price * 0.85), 2)
+                target_price = downside_target  # target ribassista
+                upside = round((target_price - current_price) / current_price * 100, 1)  # negativo
+                upside_net = round(upside * 0.74, 1)
+            except Exception:
+                target_price = round(current_price * 0.88, 2)
+                upside = round((target_price - current_price) / current_price * 100, 1)
+                upside_net = round(upside * 0.74, 1)
+            # Stop diventa target se eventual rimbalzo
+            stop_loss = round(current_price * 1.05, 2)  # stop su rimbalzo del 5%
+
+        # REGOLA 2: BUY/HOLD con prezzo > fair value → declassa
+        elif fair_value and current_price > fair_value * 1.05 and score < 80:
             if signal == "🟢 BUY":
                 signal = "🟡 HOLD"
                 score = min(score, 64)
 
-        # ── Upside sempre da current_price (non da entry) ─────────────────
-        upside = ((target_price - current_price) / current_price * 100) if target_price else upside
-        upside_net = round(upside * 0.74, 1) if upside else None
+        # REGOLA 3: P/E anomalo (>100) → fair value non può essere sopra prezzo attuale
+        # (P/E 343 con FV > prezzo è incoerente per aziende non-growth puro)
+        try:
+            if pe and float(pe) > 100 and fair_value and fair_value > current_price * 1.10:
+                # Cappalo al consensus analisti se disponibile, altrimenti al prezzo attuale
+                if pillar1_consensus:
+                    fair_value = pillar1_consensus
+                else:
+                    fair_value = round(current_price * 1.05, 2)
+        except Exception:
+            pass
+
+        # Ricalcola upside finale coerente con target
+        if not is_avoid:
+            upside = ((target_price - current_price) / current_price * 100) if target_price else upside
+            upside_net = round(upside * 0.74, 1) if upside else None
 
         return {
             "ticker": ticker,
@@ -535,6 +566,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "analyst_target": analyst_target,
             "signal": signal,
             "score": round(score),
+            "is_avoid": is_avoid,
             "rsi": round(rsi_val, 1),
             "rsi_label": rsi_label,
             "macd": round(macd_val, 4),
