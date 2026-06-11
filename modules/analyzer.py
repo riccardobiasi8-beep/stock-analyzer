@@ -503,12 +503,8 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                     time_label = f"~{round(estimated_months/12,1):.1f} anni"
                     time_category = "⛔ Molto lungo (> 2 anni)"
 
-                # Rendimento annualizzato — cappato al rendimento atteso di settore ×2
-                if estimated_months > 0 and upside:
-                    annualized_return = round(upside / (estimated_months / 12), 1)
-                    # Cap realistico: mai più di 2× il rendimento annuo atteso per settore
-                    max_annual = annual_expected_pct * 2
-                    annualized_return = min(annualized_return, max_annual)
+                # Rendimento annualizzato calcolato dopo (vedi sezione CAGR)
+                pass  # placeholder
 
         except Exception:
             time_label = "N/A"
@@ -534,8 +530,8 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 target_price = round(max(low_52w, current_price * 0.85), 2)
             except Exception:
                 target_price = round(current_price * 0.88, 2)
-            upside = round((target_price - current_price) / current_price * 100, 1)  # negativo
-            upside_net = round(upside * 0.74, 1)
+            upside = round((target_price - current_price) / current_price * 100, 2)  # negativo
+            upside_net = round(upside * 0.74, 2)
             stop_loss = round(current_price * 1.05, 2)  # stop su rimbalzo
 
         # FIX 5: HOLD → congela tutti i campi operativi
@@ -551,21 +547,23 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 is_hold = True
                 entry_price = None
 
-        # FIX 1+2: Rendimento annuo con CAGR corretto
+        # CAGR deterministico — calcolato dal backend, NON dall'AI
+        # Usa sempre current_price (non entry) per coerenza con upside label
         try:
-            if estimated_months and estimated_months > 0 and upside and target_price and entry_price:
+            if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and target_price and current_price:
                 years = estimated_months / 12.0
                 if years >= 1.0:
-                    # CAGR: (Target/Entry)^(1/anni) - 1
-                    annualized_return = round((pow(target_price / entry_price, 1.0 / years) - 1) * 100, 1)
+                    # CAGR: (Target/PrezzoAttuale)^(1/anni) - 1
+                    annualized_return = round((pow(target_price / current_price, 1.0 / years) - 1) * 100, 2)
                 else:
-                    # Lineare per < 1 anno
-                    annualized_return = round((upside / estimated_months) * 12, 1)
-                annualized_return = min(annualized_return, 200)
-            elif is_avoid or is_hold:
+                    # Tasso semplice per < 1 anno: (upside/mesi)*12
+                    annualized_return = round((upside / (estimated_months / 12.0)), 2) if upside else None
+                if annualized_return:
+                    annualized_return = min(annualized_return, 200.0)
+            else:
                 annualized_return = None
         except Exception:
-            pass
+            annualized_return = None
 
         return {
             "ticker": ticker,
@@ -578,8 +576,8 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "entry_price": entry_price,
             "target_price": target_price,
             "stop_loss": stop_loss,
-            "upside_pct": round(upside, 1) if upside else None,
-            "upside_net_pct": upside_net,
+            "upside_pct": round(upside, 2) if upside is not None else None,
+            "upside_net_pct": round(upside_net, 2) if upside_net is not None else None,
             "time_label": time_label,
             "time_category": time_category,
             "estimated_months": estimated_months,
