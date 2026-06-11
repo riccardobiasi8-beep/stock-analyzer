@@ -118,10 +118,7 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
     "debt_equity": <numero o null>,
     "beta": <numero o null>,
     "dividend_yield": <numero% o null>,
-    "fair_value": <numero o null>,
-    "target_price": <numero o null>,
-    "stop_loss": <numero o null>,
-    "upside_pct": <numero o null>
+    "fair_value": <numero o null>
   }},
   "field_reasoning": {{
     "pe": "<spiegazione breve o null>",
@@ -131,8 +128,7 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
     "debt_equity": "<spiegazione o null>",
     "beta": "<spiegazione o null>",
     "dividend_yield": "<spiegazione o null>",
-    "fair_value": null, "target_price": null,
-    "stop_loss": null, "upside_pct": null
+    "fair_value": "<spiegazione o null>"
   }},
   "data_reliability": "<Alta|Media|Bassa>",
   "summary": "<frase italiana con correzioni applicate>"
@@ -172,15 +168,14 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
         corrected_fields = []
 
         field_map = {
-            # Fundamentals — AI can correct these
+            # ONLY fundamentals — AI can correct/fill these when missing from Yahoo
             "pe":"pe","pb":"pb","ev_ebitda":"ev_ebitda","roe":"roe",
             "profit_margin":"profit_margin","revenue_growth":"revenue_growth",
             "debt_equity":"debt_equity","beta":"beta","dividend_yield":"dividend_yield",
-            # Price targets — AI can correct these
-            "fair_value":"fair_value","target_price":"target_price",
-            "stop_loss":"stop_loss",
-            # upside_pct and upside_net_pct are NEVER touched by AI
-            # They are always recalculated from target_price/current_price
+            # Fair value only — NOT target_price or stop_loss (those come from backend math)
+            "fair_value":"fair_value",
+            # target_price, stop_loss, upside_pct, upside_net_pct: NEVER touched by AI
+            # They are calculated deterministically by analyzer.py
         }
 
         for key, data_key in field_map.items():
