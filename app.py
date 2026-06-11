@@ -776,7 +776,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 upside_str = _pct(upside, avoid=is_avoid) if upside is not None else "—"
                 netg_str = _pct(net_g, avoid=is_avoid) if net_g is not None else "—"
                 annr_str = _pct(ann_r) if (ann_r is not None and not is_hold and not is_avoid) else "—"
-                fv_str = fmt(data.get('fair_value'), cur) if data.get('fair_value') else '—'
+                fv_str = fmt(data.get('fair_value'), cur) if (data.get('fair_value') and not is_avoid) else '—'
                 if is_avoid:
                     _cells = [
                         _cell('Entry', '—'),
@@ -938,14 +938,19 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     st.info(f"ℹ️ Dati parziali: {len(_available_funds)}/9 campi disponibili da Yahoo Finance. I rimanenti sono stimati da Gemini.")
                 # ── Fair Value — 3 Pilastri ──────────────────────────────
                 cur = data['currency']
-                fv = data.get("fair_value")
-                fv_c = data.get("fv_consensus")
-                fv_m = data.get("fv_multiples")
-                fv_d = data.get("fv_dcf")
+                fv = data.get("fair_value") if not data.get('is_avoid') else None
+                fv_c = data.get("fv_consensus") if not data.get('is_avoid') else None
+                fv_m = data.get("fv_multiples") if not data.get('is_avoid') else None
+                fv_d = data.get("fv_dcf") if not data.get('is_avoid') else None
                 n_an = data.get("n_analysts", 0)
 
-                st.markdown("**📐 Fair Value — Zona di prezzo ragionevole**")
-                fv_col1, fv_col2, fv_col3, fv_col4 = st.columns(4)
+                if data.get('is_avoid'):
+                    st.markdown("**📐 Fair Value — non disponibile per titoli AVOID**")
+                    st.caption("Il Fair Value non viene mostrato per titoli con score < 50 — i fondamentali deteriorati rendono il calcolo inaffidabile.")
+                else:
+                    st.markdown("**📐 Fair Value — Zona di prezzo ragionevole**")
+                if not data.get('is_avoid'):
+                    fv_col1, fv_col2, fv_col3, fv_col4 = st.columns(4)
                 fv_color = "#30d158" if fv and fv > data['current_price'] else "#ff9f0a"
                 fv_col1.metric(
                     f"Fair Value ({cur})",
