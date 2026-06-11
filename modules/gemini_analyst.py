@@ -2,6 +2,9 @@ import requests
 import json
 import html
 
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 GEMINI_ENDPOINTS = [
     ("gemini-2.0-flash-lite", "v1beta"),
     ("gemini-2.0-flash-lite-001", "v1beta"),
@@ -50,20 +53,45 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 1000, use_search: 
     raise Exception(f"Tutti i modelli falliti: {last_error}")
 
 
-def analyze_stock(data: dict, api_key: str) -> str:
+def _call_groq(prompt: str, api_key: str, max_tokens: int = 800) -> str:
+    resp = requests.post(
+        GROQ_URL,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        json={"model": GROQ_MODEL, "max_tokens": max_tokens, "temperature": 0.2,
+              "messages": [{"role": "user", "content": prompt}]},
+        timeout=20
+    )
+    result = resp.json()
+    if "error" in result:
+        raise Exception(result["error"].get("message", "Groq error"))
+    return result["choices"][0]["message"]["content"].strip()
+
+
+def _call_ai(prompt: str, gemini_key: str, groq_key: str, max_tokens: int = 800) -> str:
+    """Try Gemini first, fallback to Groq if quota exceeded."""
+    try:
+        return _call_gemini(prompt, gemini_key, max_tokens)
+    except Exception as e:
+        if groq_key and any(k in str(e).lower() for k in ["quota", "rate", "falliti", "429"]):
+            print(f"[Gemini→Groq] Switching to Groq: {str(e)[:60]}")
+            return _call_groq(prompt, groq_key, max_tokens)
+        raise
+
+
+def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     """Summary sopra il grafico."""
     prompt = f"""Analista finanziario senior. Analizza {data['name']} ({data['ticker']}) in italiano in 3 frasi max:
 1. Fondamentali: P/E {data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%
 2. Tecnica: RSI {data.get('rsi','N/A')}, prezzo {'sopra' if data.get('ma50') and data.get('current_price',0) > data.get('ma50',0) else 'sotto'} MA50
 3. Verdetto: BUY/HOLD/AVOID. Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}."""
     try:
-        return _call_gemini(prompt, api_key, 250)
+        return _call_ai(prompt, api_key, groq_key, 250)
     except Exception as e:
         print(f"Gemini analyze_stock error: {e}")
         return None
 
 
-def reason_time_to_target(data: dict, api_key: str) -> str:
+def reason_time_to_target(data: dict, api_key: str, groq_key: str = "") -> str:
     """Stima temporale ragionata."""
     upside = data.get('upside_pct', 0) or 0
     prompt = f"""Analista quantitativo. Stima tempo realistico per {data['name']} ({data['ticker']}) a raggiungere target.
@@ -72,7 +100,7 @@ Settore:{data.get('sector','N/A')} | Beta:{data.get('beta','N/A')} | ATR:{data.g
 Earnings:{data.get('next_earnings_date','N/A')}
 Rispondi in italiano: stima (es "6-9 mesi"), motivazione 2 frasi, 1 catalizzatore. Max 80 parole."""
     try:
-        return _call_gemini(prompt, api_key, 300)
+        return _call_ai(prompt, api_key, groq_key, 300)
     except Exception as e:
         print(f"Gemini reason_time error: {e}")
         return None
@@ -89,7 +117,7 @@ Consensus:{an.get('consensus_label','N/A')} {an.get('n_analysts',0)} analisti ta
 Short:{sh.get('short_pct','N/A')}% Put/Call:{op.get('put_call_ratio','N/A')} Earnings media:{ea.get('avg_surprise','N/A')}% prossimi:{ea.get('next_earnings','N/A')}
 4 punti: consensus/paradosso, opzioni/short, earnings/catalyst, verdetto."""
     try:
-        return _call_gemini(prompt, api_key, 500)
+        return _call_ai(prompt, api_key, groq_key, 500)
     except Exception as e:
         print(f"Gemini sentiment error: {e}")
         return None
