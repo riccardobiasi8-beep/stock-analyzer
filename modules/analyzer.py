@@ -356,8 +356,9 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # MODELLO PREVISIONALE TEMPORALE — 4 METODI PROFESSIONALI
         # ══════════════════════════════════════════════════════════════════
 
-        upside = ((target_price - current_price) / current_price * 100) if target_price else None
-        upside_net = round(upside * 0.74, 1) if upside else None
+        # Upside SEMPRE da current_price verso target_price — 2 decimali fissi
+        upside = round((target_price - current_price) / current_price * 100, 2) if target_price else None
+        upside_net = round(upside * 0.74, 2) if upside is not None else None
 
         atr = None
         estimated_days = None
@@ -585,7 +586,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "target_price": target_price,
             "stop_loss": stop_loss,
             "upside_pct": round(upside, 2) if upside is not None else None,
-            "upside_net_pct": round(upside_net, 2) if upside_net is not None else None,
+            "upside_net_pct": round(upside * 0.74, 2) if upside is not None else None,
             "time_label": time_label,
             "time_category": time_category,
             "estimated_months": estimated_months,
