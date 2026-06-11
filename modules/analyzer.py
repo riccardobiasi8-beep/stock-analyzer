@@ -261,7 +261,20 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             target_price = round(current_price * 1.10, 2)
 
         # ── Entry price ───────────────────────────────────────────────────
-        entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
+        # BUY: entry leggermente sotto se RSI < 50, altrimenti prezzo attuale
+        # HOLD: entry solo se prezzo è significativamente sotto MA50 (ordine condizionato)
+        # AVOID: nessun entry (gestito dopo)
+        if score >= 65:  # BUY
+            entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
+        elif score >= 45:  # HOLD — entry condizionato, solo se c'è spazio di discesa
+            if ma50 and current_price < ma50 * 0.97:
+                # Prezzo già sotto MA50 — entry a supporto
+                entry_price = round(current_price * 0.97, 2)
+            else:
+                # Attendere — nessun entry immediato
+                entry_price = None
+        else:  # AVOID
+            entry_price = None
 
         # ── Stop loss dinamico (ATR-based) ────────────────────────────────
         try:
