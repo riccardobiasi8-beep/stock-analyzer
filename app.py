@@ -648,10 +648,10 @@ if page == "🔍 Analisi Titolo":
                 reasoning = _field_reasoning.get(field_key, "")
                 # Escape HTML in reasoning to prevent injection
                 import html as _html
-                reasoning_safe = _html.escape(str(reasoning)) if reasoning else ""
+                import re as _re_html
+                reasoning_safe = _re_html.sub(r'<[^>]+>', '', str(reasoning)).strip() if reasoning else ''
                 if is_ai:
                     st.markdown(f"""<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>
-    <div style='font-size:0.65rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>{label}</div>
     <div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px;display:flex;align-items:center;gap:6px'>
         {display_val}
         <span title='{reasoning_safe[:200]}' style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px;cursor:help'>ⓘ AI</span>
@@ -759,8 +759,8 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     if color is None: color = '#ffffff'
                     is_ai = bool(ai_field and ai_field in _corrected_fields)
                     reasoning = _field_reasoning.get(ai_field, '') if ai_field else ''
-                    import html as _html
-                    reasoning_safe = _html.escape(str(reasoning)) if reasoning else ''
+                    import re as _re2
+                    reasoning_safe = _re2.sub(r'<[^>]+>', '', str(reasoning)).strip() if reasoning else ''
                     ai_span = '<span style="font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px">ⓘ AI</span>'
                     badge = ' ' + ai_span if is_ai else ''
                     vc = '#0a84ff' if is_ai else color
