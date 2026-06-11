@@ -791,14 +791,15 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 else:
                     # BUY or HOLD
                     if is_hold:
-                        # FIX 5: HOLD — congela tutti i campi operativi
+                        # FIX 5 completo: HOLD — tutti i campi operativi a trattino
+                        # Solo Fair Value rimane (dato fattuale, non operativo)
                         _cells = [
-                            _cell('Entry', '— (attendi)', '#636366'),
-                            _cell('Target', fmt(data['target_price'], cur) if data.get('target_price') else '—', '#636366'),
+                            _cell('Entry', '—', '#636366'),
+                            _cell('Target', '—', '#636366'),
                             _cell('Stop Loss', '—', '#636366'),
                             _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
-                            _cell('Upside potenz.', upside_str, '#636366', 'upside_pct'),
-                            _cell('Netto potenz.', netg_str, '#636366'),
+                            _cell('Upside potenz.', '—', '#636366'),
+                            _cell('Netto potenz.', '—', '#636366'),
                             _cell('Rend. annuo', '—', '#636366'),
                             _cell('Stato', 'ATTENDI SEGNALE', '#ff9f0a'),
                         ]
