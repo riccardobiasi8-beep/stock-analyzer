@@ -6,6 +6,7 @@ from modules.analyzer import get_stock_data
 from modules.screener import run_screener, MARKET_GROUPS
 from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context, get_full_sentiment
 from modules.validator import validate_stock_data
+from modules.gemini_analyst import analyze_stock, reason_time_to_target, analyze_sentiment_narrative, validate_and_flag
 import time
 
 # ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
@@ -640,24 +641,32 @@ if page == "🔍 Analisi Titolo":
                         st.markdown("✅ Tutti i dati nella norma.")
                     if v_summary: st.caption(v_summary)
 
-            # ── AI Summary auto ───────────────────────────────────────────
-            groq_key = st.secrets.get("GROQ_API_KEY", "")
-            if groq_key:
+            # ── AI Summary (Gemini) ───────────────────────────────────────
+            gemini_key = st.secrets.get("GEMINI_API_KEY", "")
+            _ai_key = gemini_key or st.secrets.get("GROQ_API_KEY", "")
+            _use_gemini = bool(gemini_key)
+
+            if _ai_key:
                 ai_cache_key = f"ai_{ticker_input}"
                 if ai_cache_key not in st.session_state:
-                    with st.spinner(""):
+                    with st.spinner("Analisi AI in corso..."):
                         try:
-                            import requests as req
-                            _prompt = f"""Analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) in italiano, max 100 parole totali.
+                            if _use_gemini:
+                                ai_text = analyze_stock(data, gemini_key)
+                            else:
+                                import requests as req
+                                _prompt = f"""Analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) in italiano, max 100 parole.
 Dati: Prezzo {price} {cur} | Segnale {data['signal']} score {score}/100 | Entry {data['entry_price']} | Target {data['target_price']} | Stop {data['stop_loss']} | Upside {data['upside_pct']}% | RSI {data['rsi']} | P/E {data['pe']} | Settore {data['sector']}
 Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entry: X. Target: Y. Stop: Z."""
-                            _r = req.post("https://api.groq.com/openai/v1/chat/completions",
-                                headers={"Content-Type":"application/json","Authorization":f"Bearer {groq_key}"},
-                                json={"model":"llama-3.3-70b-versatile","max_tokens":200,"messages":[{"role":"user","content":_prompt}]},
-                                timeout=15)
-                            _j = _r.json()
-                            st.session_state[ai_cache_key] = _j["choices"][0]["message"]["content"]
-                        except: st.session_state[ai_cache_key] = None
+                                _r = req.post("https://api.groq.com/openai/v1/chat/completions",
+                                    headers={"Content-Type":"application/json","Authorization":f"Bearer {_ai_key}"},
+                                    json={"model":"llama-3.3-70b-versatile","max_tokens":200,"messages":[{"role":"user","content":_prompt}]},
+                                    timeout=15)
+                                ai_text = _r.json()["choices"][0]["message"]["content"]
+                            st.session_state[ai_cache_key] = ai_text
+                        except Exception as _e:
+                            st.session_state[ai_cache_key] = None
+
                 ai_text = st.session_state.get(ai_cache_key)
                 if ai_text:
                     import re as _re
@@ -680,6 +689,20 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 ann_r = data.get("annualized_return")
                 t_label = data.get("time_label","—")
                 cur = data['currency']
+
+                # Gemini time reasoning (cached)
+                if gemini_key:
+                    _time_cache = f"time_{ticker_input}"
+                    if _time_cache not in st.session_state:
+                        with st.spinner("Gemini analizza i tempi realistici..."):
+                            try:
+                                t_reasoning = reason_time_to_target(data, gemini_key)
+                                st.session_state[_time_cache] = t_reasoning
+                            except Exception:
+                                st.session_state[_time_cache] = None
+                    _time_reasoning = st.session_state.get(_time_cache)
+                else:
+                    _time_reasoning = None
 
                 # Grid metriche
                 def _cell(label, value, color=None, ai_field=None):
@@ -713,6 +736,12 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 st.markdown(
                     f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c2c2e;border-radius:12px;overflow:hidden;margin-bottom:12px'>{_grid}</div>",
                     unsafe_allow_html=True)
+
+                # Gemini time reasoning box
+                if _time_reasoning:
+                    import re as _re_t
+                    _tr_clean = _re_t.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _time_reasoning)
+                    st.markdown(f"<div style='background:#1c1c1e;border-left:3px solid #0a84ff;padding:11px 16px;border-radius:0 10px 10px 0;font-size:0.82rem;color:#ebebf5;line-height:1.65;margin-bottom:8px'>⏱ <b>Stima temporale Gemini:</b> {_tr_clean.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
                 # Period selector — Apple style pill
                 per_sel = st.radio("Periodo", ["1M","3M","6M","1A","2A","5A"], index=3, horizontal=True, label_visibility="collapsed")
@@ -965,12 +994,11 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     nc = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{nc}'>●</span> [{art['title']}]({art['url']}) · *{art['publisher']}*", unsafe_allow_html=True)
 
-                # ── Analisi AI del Sentiment ─────────────────────────────
+                # ── Analisi AI del Sentiment (Gemini) ────────────────────
                 st.divider()
-                groq_key_s = st.secrets.get("GROQ_API_KEY", "")
-                if groq_key_s:
+                _sent_ai_key = gemini_key or st.secrets.get("GROQ_API_KEY", "")
+                if _sent_ai_key:
                     sent_cache_key = f"sent_analysis_{ticker_input}"
-
                     col_btn, _ = st.columns([2, 5])
                     with col_btn:
                         if st.button("🧠 Analisi AI Sentiment", key="ai_sentiment_btn", type="primary"):
@@ -978,55 +1006,34 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                                 del st.session_state[sent_cache_key]
 
                     if sent_cache_key not in st.session_state:
-                        with st.spinner("Groq sta analizzando il sentiment..."):
+                        with st.spinner("Gemini analizza il sentiment..."):
                             try:
-                                import requests as _req
-                                an = sent.get("analyst", {})
-                                sh = sent.get("short", {})
-                                ea = sent.get("earnings", {})
-                                op = sent.get("options", {})
-                                ins = sent.get("insider", {})
-                                rd = sent.get("reddit", {})
-                                nw = sent.get("news", {})
-
-                                _prompt = f"""Sei un analista finanziario senior di Wall Street. Analizza in italiano il sentiment di mercato su {data['name']} ({data['ticker']}).
-
-DATI SENTIMENT DISPONIBILI:
-- Prezzo attuale: {data['current_price']} {data['currency']}
-- Consensus analisti: {an.get('consensus_label','N/A')} | {an.get('n_analysts',0)} analisti | Target medio: {an.get('target_mean','N/A')} | Upside da consensus: {an.get('upside','N/A')}%
-- Short Interest: {sh.get('short_pct','N/A')}% delle azioni shortate | Days to cover: {sh.get('short_ratio','N/A')} | Variazione mese: {sh.get('change_pct','N/A')}%
-- Earnings Surprise ultimi 4 trimestri: {ea.get('surprises','N/A')} | Media: {ea.get('avg_surprise','N/A')}% | Prossimi earnings: {ea.get('next_earnings','N/A')}
-- Options Put/Call ratio: {op.get('put_call_ratio','N/A')} | Call vol: {op.get('calls_volume','N/A')} | Put vol: {op.get('puts_volume','N/A')}
-- Insider trading: {ins.get('label','N/A')} | Acquisti: {ins.get('buys',0)} | Vendite: {ins.get('sells',0)}
-- Reddit mentions: {rd.get('mentions',0)} questa settimana | Sentiment social: {rd.get('avg_sentiment','N/A')}
-- News sentiment: {nw.get('label','N/A')} (score: {nw.get('score','N/A')})
-- Score sentiment composito: {sent.get('score',0)}/100
-
-Scrivi un'analisi narrativa di 250-300 parole che spieghi:
-1. **Il paradosso del consensus** — se c'è contraddizione tra giudizio BUY/SELL e upside negativo/positivo, spiegala come ha fatto il mercato (es: "gli analisti mantengono BUY perché... ma il target non è stato aggiornato perché...")
-2. **Cosa dicono le opzioni e lo short interest** — interpreta put/call ratio e % short come indicatori del sentiment istituzionale reale
-3. **Il nodo degli earnings** — analizza il pattern delle sorprese trimestrali e cosa significa per il futuro
-4. **La data chiave** — se ci sono prossimi earnings, spiega perché quella data è cruciale e cosa potrebbe sbloccare o affossare il titolo
-5. **Verdetto sentiment** — un giudizio finale sul posizionamento del mercato
-
-Sii specifico, usa i numeri, spiega i paradossi. Scrivi come se stessi briefando un cliente privato importante."""
-
-                                _r = _req.post(
-                                    "https://api.groq.com/openai/v1/chat/completions",
-                                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {groq_key_s}"},
-                                    json={"model": "llama-3.3-70b-versatile", "max_tokens": 600,
-                                          "messages": [{"role": "user", "content": _prompt}]},
-                                    timeout=30
-                                )
-                                _j = _r.json()
-                                st.session_state[sent_cache_key] = _j["choices"][0]["message"]["content"]
+                                if gemini_key:
+                                    _sent_text = analyze_sentiment_narrative(data, sent, gemini_key)
+                                else:
+                                    import requests as _req
+                                    an = sent.get("analyst", {})
+                                    sh = sent.get("short", {})
+                                    ea = sent.get("earnings", {})
+                                    op = sent.get("options", {})
+                                    ins = sent.get("insider", {})
+                                    nw = sent.get("news", {})
+                                    _prompt = f"""Analista finanziario senior. Analizza sentiment {data['name']} ({data['ticker']}) in italiano 250 parole.
+Consensus: {an.get('consensus_label','N/A')} | {an.get('n_analysts',0)} analisti | Target: {an.get('target_mean','N/A')} | Upside: {an.get('upside','N/A')}%
+Short: {sh.get('short_pct','N/A')}% | Put/Call: {op.get('put_call_ratio','N/A')} | Earnings media: {ea.get('avg_surprise','N/A')}% | Prossimi: {ea.get('next_earnings','N/A')}
+Spiega paradossi consensus, short interest, earnings pattern, data chiave, verdetto finale."""
+                                    _r = _req.post("https://api.groq.com/openai/v1/chat/completions",
+                                        headers={"Content-Type":"application/json","Authorization":f"Bearer {_sent_ai_key}"},
+                                        json={"model":"llama-3.3-70b-versatile","max_tokens":600,"messages":[{"role":"user","content":_prompt}]},
+                                        timeout=30)
+                                    _sent_text = _r.json()["choices"][0]["message"]["content"]
+                                st.session_state[sent_cache_key] = _sent_text
                             except Exception as _e:
                                 st.session_state[sent_cache_key] = f"Errore: {_e}"
 
                     if sent_cache_key in st.session_state:
                         import re as _re2
                         _txt = st.session_state[sent_cache_key]
-                        # Render markdown bold
                         _txt_html = _re2.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _txt)
                         sc_col = "#30d158" if sent.get("score",50) >= 65 else ("#ff9f0a" if sent.get("score",50) >= 45 else "#ff453a")
                         st.markdown(f"""<div style='background:#1c1c1e;border-left:3px solid {sc_col};padding:16px 20px;border-radius:0 12px 12px 0;font-size:0.85rem;color:#ebebf5;line-height:1.75'>{_txt_html.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
