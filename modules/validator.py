@@ -201,6 +201,11 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
                 corrected_data["upside_pct"] = new_upside
                 corrected_data["upside_net_pct"] = round(new_upside * 0.74, 1)
 
+        # Always recalc upside_net from upside_pct (keeps them consistent)
+        final_upside = corrected_data.get("upside_pct")
+        if final_upside is not None:
+            corrected_data["upside_net_pct"] = round(float(final_upside) * 0.74, 1)
+
         print(f"[Validator] {ticker}: {len(corrected_fields)} corrections: {corrected_fields}")
 
         corrected_data["validation"] = {
