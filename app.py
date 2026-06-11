@@ -768,6 +768,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 annr_str = f'+{ann_r}%' if ann_r else '—'
                 fv_str = fmt(data.get('fair_value'), cur) if data.get('fair_value') else '—'
                 is_avoid = data.get('is_avoid', False)
+                is_hold = data.get('is_hold', False)
                 if is_avoid:
                     _cells = [
                         _cell('Entry', '—'),
