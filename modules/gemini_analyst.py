@@ -14,7 +14,8 @@ def _call_gemini(prompt: str, api_key: str, max_tokens: int = 800) -> str:
             "generationConfig": {
                 "temperature": 0.2,
                 "maxOutputTokens": max_tokens,
-            }
+            },
+            "tools": [{"google_search_retrieval": {}}]
         },
         timeout=25
     )
