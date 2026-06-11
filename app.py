@@ -533,27 +533,31 @@ if page == "🔍 Analisi Titolo":
             
             if data and "error" not in data and _gkey:
                 _val_placeholder = st.empty()
-                _val_placeholder.info("🔍 Gemini sta cercando e validando i dati...")
-                try:
-                    data = validate_stock_data(data, _gkey)
-                    _val_status = data.get("validation", {}).get("status")
-                    _n_corr = len(data.get("validation", {}).get("corrected_fields", []))
-                    _summary = data.get("validation", {}).get("summary", "")
-                    if _val_status == "completed" and _n_corr > 0:
-                        _val_placeholder.success(f"✅ Gemini: {_n_corr} correzioni — {_summary}")
-                    elif _val_status == "completed":
-                        _val_placeholder.success(f"✅ Dati validati — {_summary or 'nessuna anomalia'}")
-                    elif _val_status == "error":
-                        _err = data.get("validation", {}).get("issues", ["?"])
-                        _val_placeholder.error(f"❌ Errore validazione: {_err[0] if _err else '?'}")
-                    else:
-                        _val_placeholder.warning(f"⚠️ Status: {_val_status}")
-                    import time; time.sleep(2)
-                    _val_placeholder.empty()
-                except Exception as _ve:
-                    _val_placeholder.error(f"❌ Eccezione: {str(_ve)[:120]}")
-                    import traceback
-                    print(f"[App Validator Exception] {traceback.format_exc()}")
+                _val_status_prev = data.get("validation", {}).get("status")
+                if _val_status_prev not in ["completed"]:
+                    _val_placeholder.info("🔍 Gemini sta validando i dati...")
+                    try:
+                        data = validate_stock_data(data, _gkey)
+                        _val_status = data.get("validation", {}).get("status")
+                        _n_corr = len(data.get("validation", {}).get("corrected_fields", []))
+                        _summary = data.get("validation", {}).get("summary", "")
+                        if _val_status == "completed" and _n_corr > 0:
+                            _val_placeholder.success(f"✅ Gemini: {_n_corr} correzioni — {_summary}")
+                        elif _val_status == "completed":
+                            _val_placeholder.success(f"✅ Dati validati — {_summary or 'nessuna anomalia'}")
+                        elif _val_status == "error":
+                            _err = data.get("validation", {}).get("issues", [""])[0]
+                            if "quota" in _err.lower() or "rate" in _err.lower():
+                                _val_placeholder.warning("⏳ Quota Gemini esaurita — i dati vengono mostrati senza validazione AI. Si resetta a mezzanotte UTC.")
+                            else:
+                                _val_placeholder.warning(f"⚠️ Validazione non disponibile")
+                        else:
+                            _val_placeholder.empty()
+                        import time; time.sleep(1.5)
+                        _val_placeholder.empty()
+                    except Exception as _ve:
+                        _val_placeholder.empty()
+                        print(f"[App Validator Exception] {_ve}")
 
             st.session_state.last_data = data
             st.session_state.last_ticker = ticker_input
