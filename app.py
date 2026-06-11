@@ -179,14 +179,7 @@ hr{border:none!important;border-top:0.5px solid #2c2c2e!important;margin:1.2rem 
 </style>
 """, unsafe_allow_html=True)
 
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import pandas as pd
-from modules.analyzer import get_stock_data
-from modules.screener import run_screener, MARKET_GROUPS
-from modules.sentiment import get_fear_greed, get_news_sentiment, get_macro_context, get_full_sentiment
-from modules.validator import validate_stock_data
-import time
 
 # ── Dizionario ticker → nome (per ricerca per nome) ───────────────────────────
 TICKER_DICT = {
@@ -536,9 +529,9 @@ if page == "🔍 Analisi Titolo":
             with st.spinner(f"Carico dati per {ticker_input}..."):
                 data = get_stock_data(ticker_input, period=period)
                 # Validate data with Groq
-                _gkey = st.secrets.get("GROQ_API_KEY", "")
-                if _gkey and "error" not in data:
-                    with st.spinner("Validazione dati con AI..."):
+                _gkey = st.secrets.get("GEMINI_API_KEY", "")
+                if _gkey and data and "error" not in data:
+                    with st.spinner("Validazione dati con Gemini..."):
                         data = validate_stock_data(data, _gkey)
             st.session_state.last_data = data
             st.session_state.last_ticker = ticker_input
@@ -600,6 +593,9 @@ if page == "🔍 Analisi Titolo":
             if val.get("status") == "completed":
                 for c in val.get("corrected_fields", []):
                     _corrected_fields.add(c.split(":")[0].strip())
+            # Debug: print to Streamlit logs
+            import sys
+            print(f"[DEBUG] validation status: {val.get('status')} | corrected: {val.get('corrected_fields',[])} | _corrected_fields: {_corrected_fields}", file=sys.stderr)
 
             def ai_metric(label, field_key, value, suffix="", delta=None):
                 is_ai = field_key in _corrected_fields
@@ -643,7 +639,7 @@ if page == "🔍 Analisi Titolo":
 
             # ── AI Summary (Gemini) ───────────────────────────────────────
             gemini_key = st.secrets.get("GEMINI_API_KEY", "")
-            _ai_key = gemini_key or st.secrets.get("GROQ_API_KEY", "")
+            _ai_key = gemini_key or st.secrets.get("GEMINI_API_KEY", "")
             _use_gemini = bool(gemini_key)
 
             if _ai_key:
@@ -996,7 +992,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
 
                 # ── Analisi AI del Sentiment (Gemini) ────────────────────
                 st.divider()
-                _sent_ai_key = gemini_key or st.secrets.get("GROQ_API_KEY", "")
+                _sent_ai_key = gemini_key or st.secrets.get("GEMINI_API_KEY", "")
                 if _sent_ai_key:
                     sent_cache_key = f"sent_analysis_{ticker_input}"
                     col_btn, _ = st.columns([2, 5])
@@ -1033,8 +1029,11 @@ Spiega paradossi consensus, short interest, earnings pattern, data chiave, verde
 
                     if sent_cache_key in st.session_state:
                         import re as _re2
-                        _txt = st.session_state[sent_cache_key]
-                        _txt_html = _re2.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _txt)
+                        _txt = st.session_state[sent_cache_key] or ""
+                        if not _txt:
+                            st.caption("Analisi non disponibile — riprova.")
+                        else:
+                            _txt_html = _re2.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _txt)
                         sc_col = "#30d158" if sent.get("score",50) >= 65 else ("#ff9f0a" if sent.get("score",50) >= 45 else "#ff453a")
                         st.markdown(f"""<div style='background:#1c1c1e;border-left:3px solid {sc_col};padding:16px 20px;border-radius:0 12px 12px 0;font-size:0.85rem;color:#ebebf5;line-height:1.75'>{_txt_html.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
 
@@ -1217,3 +1216,4 @@ elif page == "🌡️ Sentiment Mercato":
                     ac = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{ac}'>●</span> [{art['title'][:60]}...]({art['url']})",
                                 unsafe_allow_html=True)
+                    
