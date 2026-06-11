@@ -763,6 +763,9 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                         f"<div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>{label}{badge}</div>"
                         f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val_str}</div></div>")
 
+                is_avoid = data.get('is_avoid', False)
+                is_hold = data.get('is_hold', False)
+
                 def _pct(val, avoid=False):
                     """Format percentage: 2 decimals. For AVOID: only minus sign."""
                     if val is None: return "—"
@@ -774,8 +777,6 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 netg_str = _pct(net_g, avoid=is_avoid) if net_g is not None else "—"
                 annr_str = _pct(ann_r) if (ann_r is not None and not is_hold and not is_avoid) else "—"
                 fv_str = fmt(data.get('fair_value'), cur) if data.get('fair_value') else '—'
-                is_avoid = data.get('is_avoid', False)
-                is_hold = data.get('is_hold', False)
                 if is_avoid:
                     _cells = [
                         _cell('Entry', '—'),
