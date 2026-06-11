@@ -334,7 +334,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # ── Entry price (dipende dallo score) ─────────────────────────────
         if score >= 65:  # BUY
             entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
-        elif score >= 45:  # HOLD — entry solo se già sotto MA50
+        elif score >= 50:  # HOLD — entry solo se già sotto MA50
             if ma50 and current_price < ma50 * 0.97:
                 entry_price = round(current_price * 0.97, 2)
             else:
