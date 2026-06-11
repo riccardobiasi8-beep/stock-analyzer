@@ -548,20 +548,20 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 entry_price = None
 
         # CAGR deterministico — calcolato dal backend, NON dall'AI
-        # Usa sempre current_price (non entry) per coerenza con upside label
+        # Formula: (Target/PrezzoAttuale)^(1/anni) - 1
+        # Anni = estimated_months / 12.0 (float preciso, no arrotondamenti intermedi)
         try:
-            if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and target_price and current_price:
-                years = estimated_months / 12.0
+            annualized_return = None
+            if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and target_price and current_price and upside:
+                years = estimated_months / 12.0  # es. 19.2 mesi → 1.6 anni esatti
                 if years >= 1.0:
-                    # CAGR: (Target/PrezzoAttuale)^(1/anni) - 1
-                    annualized_return = round((pow(target_price / current_price, 1.0 / years) - 1) * 100, 2)
+                    # CAGR puro: (Target/PrezzoAttuale)^(1/anni) - 1
+                    _ratio = target_price / current_price
+                    annualized_return = round((pow(_ratio, 1.0 / years) - 1) * 100, 2)
                 else:
-                    # Tasso semplice per < 1 anno: (upside/mesi)*12
-                    annualized_return = round((upside / (estimated_months / 12.0)), 2) if upside else None
-                if annualized_return:
-                    annualized_return = min(annualized_return, 200.0)
-            else:
-                annualized_return = None
+                    # Tasso lineare per < 1 anno: upside / anni
+                    annualized_return = round(upside / years, 2)
+                annualized_return = min(annualized_return, 200.0)
         except Exception:
             annualized_return = None
 
