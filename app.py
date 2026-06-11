@@ -692,6 +692,8 @@ if page == "🔍 Analisi Titolo":
                 ai_cache_key = f"ai_{ticker_input}"
                 if ai_cache_key not in st.session_state:
                     with st.spinner("Analisi AI in corso..."):
+                        import time as _time
+                        _time.sleep(2)  # delay after validation to avoid rate limit
                         try:
                             if _use_gemini:
                                 ai_text = analyze_stock(data, gemini_key)
@@ -737,6 +739,8 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     _time_cache = f"time_{ticker_input}"
                     if _time_cache not in st.session_state:
                         with st.spinner("Gemini analizza i tempi realistici..."):
+                            import time as _time2
+                            _time2.sleep(3)  # delay to avoid rate limit
                             try:
                                 t_reasoning = reason_time_to_target(data, gemini_key)
                                 st.session_state[_time_cache] = t_reasoning
