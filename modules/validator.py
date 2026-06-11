@@ -1,22 +1,23 @@
 import json
 import requests
 
-GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-pro-latest",
-    "gemini-pro",
+# (model, api_version) pairs to try in order
+GEMINI_ENDPOINTS = [
+    ("gemini-2.0-flash-lite", "v1beta"),
+    ("gemini-2.0-flash", "v1beta"),
+    ("gemini-2.5-flash", "v1beta"),
+    ("gemini-2.0-flash-lite-001", "v1beta"),
+    ("gemini-2.0-flash-001", "v1beta"),
 ]
-GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_BASE = "https://generativelanguage.googleapis.com/{version}/models/{model}:generateContent"
 
 
 def _call_gemini_validator(prompt: str, api_key: str, max_tokens: int = 1200) -> str:
     last_error = None
-    for model in GEMINI_MODELS:
+    for model, version in GEMINI_ENDPOINTS:
         try:
             response = requests.post(
-                f"{GEMINI_BASE.format(model=model)}?key={api_key}",
+                f"{GEMINI_BASE.format(version=version, model=model)}?key={api_key}",
                 headers={"Content-Type": "application/json"},
                 json={
                     "contents": [{"parts": [{"text": prompt}]}],
@@ -27,7 +28,7 @@ def _call_gemini_validator(prompt: str, api_key: str, max_tokens: int = 1200) ->
             result = response.json()
             if "error" in result:
                 last_error = result["error"].get("message", "error")
-                print(f"[Validator] Model {model} failed: {last_error[:80]}")
+                print(f"[Validator] {model}/{version} failed: {str(last_error)[:60]}")
                 continue
             candidates = result.get("candidates", [])
             if not candidates:
@@ -38,7 +39,7 @@ def _call_gemini_validator(prompt: str, api_key: str, max_tokens: int = 1200) ->
             parts = candidates[0].get("content", {}).get("parts", [])
             if not parts:
                 continue
-            print(f"[Validator] OK with model: {model}")
+            print(f"[Validator] OK: {model}/{version}")
             return parts[0].get("text", "").strip()
         except Exception as e:
             if "SAFETY" in str(e):
