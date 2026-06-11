@@ -553,8 +553,10 @@ if page == "🔍 Analisi Titolo":
                             _val_placeholder.success(f"✅ Dati validati — {_summary or 'nessuna anomalia'}")
                         elif _val_status == "error":
                             _err = data.get("validation", {}).get("issues", [""])[0]
-                            if "quota" in _err.lower() or "rate" in _err.lower():
-                                _val_placeholder.warning("⏳ Quota Gemini esaurita — i dati vengono mostrati senza validazione AI. Si resetta a mezzanotte UTC.")
+                            if "Gemini e Groq" in _err:
+                                _val_placeholder.warning("⏳ Quota AI esaurita (Gemini + Groq) — dati mostrati senza validazione. Si resetta a mezzanotte UTC.")
+                            elif "quota" in _err.lower() or "rate" in _err.lower():
+                                _val_placeholder.warning("⏳ Quota Gemini esaurita — passaggio a Groq in corso...")
                             else:
                                 _val_placeholder.warning(f"⚠️ Validazione non disponibile")
                         else:
