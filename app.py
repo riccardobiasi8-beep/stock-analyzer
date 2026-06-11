@@ -738,9 +738,9 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     unsafe_allow_html=True)
 
                 # Gemini time reasoning box
-                if _time_reasoning:
+                if _time_reasoning and not str(_time_reasoning).startswith("Stima") and not str(_time_reasoning).startswith("Analisi"):
                     import re as _re_t
-                    _tr_clean = _re_t.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _time_reasoning)
+                    _tr_clean = _re_t.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', str(_time_reasoning))
                     st.markdown(f"<div style='background:#1c1c1e;border-left:3px solid #0a84ff;padding:11px 16px;border-radius:0 10px 10px 0;font-size:0.82rem;color:#ebebf5;line-height:1.65;margin-bottom:8px'>⏱ <b>Stima temporale Gemini:</b> {_tr_clean.replace(chr(10),'<br>')}</div>", unsafe_allow_html=True)
 
                 # Period selector — Apple style pill
