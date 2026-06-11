@@ -96,11 +96,15 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         def get_info(*keys, default=None):
             for k in keys:
                 v = info.get(k)
-                if v is not None and v != "" and v == v:  # not None, not NaN
+                if v is not None and v != "":
                     try:
                         f = float(v)
+                        # Filter NaN/Inf
+                        import math
+                        if math.isnan(f) or math.isinf(f):
+                            continue
                         if f != 0 or k in ["dividendYield"]:
-                            return f
+                            return round(f, 4)
                     except (TypeError, ValueError):
                         return v
             return default
@@ -121,11 +125,22 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         name = info.get("longName") or info.get("shortName") or ticker
         currency = info.get("currency") or info.get("financialCurrency") or "USD"
 
-        # Sanity check: filter out absurd values
+        # Fix current_price if NaN — use last valid close
+        import math as _math
+        if current_price is None or _math.isnan(current_price):
+            try:
+                current_price = round(float(hist["Close"].dropna().iloc[-1]), 2)
+            except Exception:
+                return {"error": f"Prezzo non disponibile per {ticker}"}
+
+        # Sanity check: filter out absurd values BEFORE passing to Gemini
+        # (Gemini will re-estimate these)
         if pe and (pe < 0 or pe > 500): pe = None
-        if pb and pb < 0: pb = None
-        if roe and abs(roe) > 5: roe = None  # >500% ROE is a data error
+        if pb and pb < 0: pb = abs(pb)
+        if roe and abs(roe) > 5: roe = None       # Yahoo returns ROE as decimal, >5 = >500% anomaly
+        if profit_margin and abs(profit_margin) > 2: profit_margin = None  # >200% impossible
         if debt_equity and debt_equity < 0: debt_equity = None
+        if dividend_yield and dividend_yield > 0.5: dividend_yield = None  # >50% impossible
 
         # ══════════════════════════════════════════════════════════════════
         # FAIR VALUE — 3 PILASTRI PROFESSIONALI
@@ -537,4 +552,3 @@ def get_sector_pe(sector: str) -> float:
         "Communication Services": 20,
     }
     return sector_pe.get(sector, 18)
-    
