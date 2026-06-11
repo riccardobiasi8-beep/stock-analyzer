@@ -310,6 +310,18 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
 
         score = max(0, min(100, score))
 
+        # --- RSI label (correct thresholds) ---
+        if rsi_val >= 70:
+            rsi_label = "Ipercomprato"
+        elif rsi_val <= 30:
+            rsi_label = "Ipervenduto"
+        elif rsi_val >= 55:
+            rsi_label = "Forza"
+        elif rsi_val <= 45:
+            rsi_label = "Debolezza"
+        else:
+            rsi_label = "Neutro"
+
         # --- Signal label ---
         if score >= 65:
             signal = "🟢 BUY"
@@ -317,6 +329,10 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             signal = "🟡 HOLD"
         else:
             signal = "🔴 SELL / AVOID"
+
+        # --- Coherence check: se prezzo > fair value, declassa segnale ---
+        # Non ha senso dare BUY se il titolo quota sopra il suo fair value
+        # a meno che l'upside tecnico non sia molto forte (score >= 80)
 
         # ══════════════════════════════════════════════════════════════════
         # MODELLO PREVISIONALE TEMPORALE — 4 METODI PROFESSIONALI
@@ -481,6 +497,17 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             time_category = "N/A"
             time_detail = ""
 
+        # ── Signal coherence: declassa se prezzo > fair value ────────────
+        if fair_value and current_price > fair_value * 1.05 and score < 80:
+            # Titolo sopravvalutato rispetto al fair value — non dare BUY convinto
+            if signal == "🟢 BUY":
+                signal = "🟡 HOLD"
+                score = min(score, 64)
+
+        # ── Upside sempre da current_price (non da entry) ─────────────────
+        upside = ((target_price - current_price) / current_price * 100) if target_price else upside
+        upside_net = round(upside * 0.74, 1) if upside else None
+
         return {
             "ticker": ticker,
             "name": name,
@@ -509,6 +536,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "signal": signal,
             "score": round(score),
             "rsi": round(rsi_val, 1),
+            "rsi_label": rsi_label,
             "macd": round(macd_val, 4),
             "macd_signal": round(macd_sig, 4),
             "ma20": round(ma20, 2) if ma20 else None,
