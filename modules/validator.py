@@ -1,86 +1,108 @@
 import json
 import requests
 
-# Uses Gemini for validation
-
 
 def validate_stock_data(data: dict, gemini_key: str) -> dict:
     """
-    Passes raw stock data through Groq for validation and anomaly correction.
-    Returns cleaned data with validation report.
+    Uses Gemini to:
+    1. Estimate missing fields with reasoning
+    2. Correct anomalous values with reasoning
+    3. Validate calculated metrics (target, stop, fair value)
+    Returns data with corrections + per-field reasoning for tooltips.
     """
     if not gemini_key:
-        return {**data, "validation": {"status": "skipped", "issues": [], "score": None, "corrected_fields": [], "reliability": "N/A", "summary": ""}}
+        return {**data, "validation": {
+            "status": "skipped", "issues": [], "score": None,
+            "corrected_fields": [], "field_reasoning": {},
+            "reliability": "N/A", "summary": ""
+        }}
 
-    # Build validation prompt with all extracted data
-    prompt = f"""Sei un analista finanziario senior. Ti fornisco dati estratti da Yahoo Finance per {data.get('name', '?')} ({data.get('ticker', '?')}).
+    missing = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
+               "revenue_growth","debt_equity","beta","dividend_yield"]
+               if data.get(k) is None]
 
-Il tuo compito è VALIDARE ogni campo e CORREGGERE le anomalie.
+    prompt = f"""Sei un analista finanziario senior di Goldman Sachs. Analizza {data.get('name','?')} ({data.get('ticker','?')}).
 
-DATI ESTRATTI:
-- Prezzo attuale: {data.get('current_price')} {data.get('currency', 'USD')}
-- P/E ratio: {data.get('pe')}
-- P/B ratio: {data.get('pb')}
-- EV/EBITDA: {data.get('ev_ebitda')}
-- ROE: {data.get('roe')}%
-- Margine netto: {data.get('profit_margin')}%
-- Crescita ricavi: {data.get('revenue_growth')}%
-- Debt/Equity: {data.get('debt_equity')}
-- Beta: {data.get('beta')}
-- Dividend yield: {data.get('dividend_yield')}%
-- Market cap: {data.get('market_cap')}
+DATI DISPONIBILI:
+- Settore: {data.get('sector','N/A')} | Industria: {data.get('industry','N/A')}
+- Prezzo: {data.get('current_price')} {data.get('currency','USD')} | Market cap: {data.get('market_cap')}
+- P/E: {data.get('pe')} | P/B: {data.get('pb')} | EV/EBITDA: {data.get('ev_ebitda')}
+- ROE: {data.get('roe')}% | Margine netto: {data.get('profit_margin')}% | Crescita ricavi: {data.get('revenue_growth')}%
+- Debt/Equity: {data.get('debt_equity')} | Beta: {data.get('beta')} | Dividend yield: {data.get('dividend_yield')}%
 - RSI: {data.get('rsi')}
-- Fair Value (calcolato): {data.get('fair_value')}
-- Target price (calcolato): {data.get('target_price')}
-- Consensus analisti target: {data.get('analyst_target')}
-- N. analisti: {data.get('n_analysts', 0)}
-- Upside %: {data.get('upside_pct')}%
-- Settore: {data.get('sector')}
-- Industria: {data.get('industry')}
+- Target calcolato: {data.get('target_price')} | Stop calcolato: {data.get('stop_loss')} | Fair Value: {data.get('fair_value')}
+- Consensus analisti: {data.get('analyst_target')} ({data.get('n_analysts',0)} analisti) | Upside: {data.get('upside_pct')}%
+- ATR: {data.get('atr')} | Tempo stimato: {data.get('time_label')}
 
-REGOLE DI VALIDAZIONE E CORREZIONE:
-1. P/E: valido 0-100 per aziende normali, 100-500 solo per aziende in recovery con EPS vicino a zero.
-   - Se P/E > 500 o negativo: STIMA il P/E corretto usando (Prezzo / EPS forward) se disponibile, oppure usa la media di settore
-   - Per STM/semiconduttori in ciclo down: P/E 30-60 è normale
-2. P/B: valido 0.1-20. Se <0: usa valore assoluto. Se >50: anomalia, stima da settore
-3. ROE: valido -50% a +80%. Se >100% o <-100%: correggi dividendo per 100 (probabilmente errore di scala)
-4. Margine netto: valido -30% a +50%. Se fuori range: correggi dividendo per 100
-5. Debt/Equity: per aziende tech/industriali valido 0-3. Per banche può essere 10-20 (normale).
-   - Se appare NULL o mancante per azienda con dati finanziari: stima dalla media settore
-6. Beta: valido 0.1-4.0. Se mancante: stima dal settore (tech=1.3, utility=0.5, banche=1.0)
-7. Dividend yield: valido 0-15%. Se >20%: probabilmente errore, correggi dividendo per 10
-8. RSI: deve essere 0-100. Se fuori range: null
-9. Fair Value: non deve essere >2x il prezzo attuale né <0.3x. Se anomalo: usa consensus analisti
-10. Upside %: ricalcola sempre come (target - prezzo) / prezzo * 100
+CAMPI MANCANTI: {missing if missing else 'nessuno'}
 
-IMPORTANTE: Per ogni campo anomalo NON mettere "N/A" — invece STIMA il valore corretto più plausibile
-basandoti su: settore={data.get('sector')}, prezzo={data.get('current_price')}, EPS stimabile dagli altri dati.
-Usa "N/A" SOLO se è impossibile stimare qualsiasi valore ragionevole.
+HAI TRE COMPITI:
 
-Rispondi SOLO con un JSON valido in questo formato esatto (nessun testo fuori dal JSON):
+COMPITO 1 — STIMA CAMPI MANCANTI:
+Per ogni campo None, stima un valore basandoti su settore, prezzo, e altri multipli disponibili.
+Regole di stima per settore ({data.get('sector','N/A')}):
+- Beta mancante: utility=0.5, telecom=0.6, banche=1.0, industriali=1.1, tech=1.3, semiconduttori=1.5, growth=1.8
+- Debt/Equity mancante: SaaS/tech asset-light=0.2, tech hardware=0.5, industriali=0.8, utility=1.5, banche=N/A
+- Dividend yield mancante: growth tech=0%, value/telecom=2-4%, utility=3-5%, banche=2-3%
+- P/E mancante: stima da EV/EBITDA×0.6 oppure usa media settore
+
+COMPITO 2 — CORREZIONE ANOMALIE FONDAMENTALI:
+- ROE >150% o <-150%: errore di scala, dividi per 100
+- Dividend yield >20%: errore di scala, dividi per 10
+- P/E <0 con azienda redditizia: usa valore assoluto o stima
+- P/B <0: usa valore assoluto
+
+COMPITO 3 — VALIDAZIONE METRICHE CALCOLATE:
+Valuta se target, stop loss e fair value sono ragionevoli per questo titolo:
+- Target troppo ottimistico (>40% upside per large cap stabile)?
+- Stop loss troppo stretto (<4%) o troppo largo (>15%)?
+- Fair value coerente con consensus analisti?
+- Upside coerente con (target-prezzo)/prezzo?
+Se anomali, proponi valori corretti.
+
+Rispondi SOLO con JSON valido:
 {{
-  "validation_score": <numero 0-100 che indica qualità generale dei dati>,
-  "issues_found": [<lista stringhe che descrivono anomalie trovate e come le hai corrette>],
+  "validation_score": <0-100>,
   "corrections": {{
-    "pe": <numero corretto, o null se già ok, MAI "N/A" a meno che impossibile stimare>,
-    "pb": <numero corretto o null>,
-    "ev_ebitda": <numero corretto o null>,
-    "roe": <numero corretto o null>,
-    "profit_margin": <numero corretto o null>,
-    "revenue_growth": <numero corretto o null>,
-    "debt_equity": <numero corretto o null se impossibile stimare>,
-    "beta": <numero corretto o null>,
-    "dividend_yield": <numero corretto o null>,
-    "rsi": <numero corretto o null>,
-    "fair_value": <numero corretto o null>,
-    "target_price": <numero corretto o null>,
-    "upside_pct": <numero corretto o null>
+    "pe": <numero o null>,
+    "pb": <numero o null>,
+    "ev_ebitda": <numero o null>,
+    "roe": <numero o null>,
+    "profit_margin": <numero o null>,
+    "revenue_growth": <numero o null>,
+    "debt_equity": <numero o null>,
+    "beta": <numero o null>,
+    "dividend_yield": <numero o null>,
+    "rsi": <numero o null>,
+    "fair_value": <numero o null>,
+    "target_price": <numero o null>,
+    "stop_loss": <numero o null>,
+    "upside_pct": <numero o null>
+  }},
+  "field_reasoning": {{
+    "pe": "<valore originale X → nuovo valore Y. Ragionamento: ...>",
+    "pb": "<spiegazione o null se non corretto>",
+    "ev_ebitda": null,
+    "roe": "<spiegazione>",
+    "profit_margin": null,
+    "revenue_growth": null,
+    "debt_equity": "<spiegazione>",
+    "beta": "<spiegazione>",
+    "dividend_yield": "<spiegazione>",
+    "rsi": null,
+    "fair_value": "<spiegazione>",
+    "target_price": "<spiegazione>",
+    "stop_loss": "<spiegazione>",
+    "upside_pct": "<spiegazione>"
   }},
   "data_reliability": "<Alta|Media|Bassa>",
-  "summary": "<una frase in italiano che riassume anomalie trovate e correzioni applicate>"
+  "summary": "<frase italiana che descrive le correzioni principali>"
 }}
 
-Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stringhe "N/A"."""
+REGOLE:
+- corrections: null = campo ok, numero = valore corretto/stimato
+- field_reasoning: null = non modificato, stringa = spiega il ragionamento con valore originale e nuovo
+- Sii specifico nel ragionamento: cita numeri, settore, logica usata"""
 
     try:
         response = requests.post(
@@ -88,9 +110,9 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 800}
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1200}
             },
-            timeout=25
+            timeout=30
         )
 
         result = response.json()
@@ -99,9 +121,12 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
         candidates = result.get("candidates", [])
         if not candidates:
             raise Exception("Nessuna risposta da Gemini")
-        raw_text = candidates[0]["content"]["parts"][0]["text"].strip()
 
-        # Clean JSON if wrapped in markdown
+        finish_reason = candidates[0].get("finishReason", "")
+        if finish_reason == "SAFETY":
+            raise Exception("Risposta bloccata da filtri sicurezza")
+
+        raw_text = candidates[0]["content"]["parts"][0]["text"].strip()
         if "```json" in raw_text:
             raw_text = raw_text.split("```json")[1].split("```")[0].strip()
         elif "```" in raw_text:
@@ -112,6 +137,7 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
         # Apply corrections to data
         corrected_data = dict(data)
         corrections = validation.get("corrections", {})
+        field_reasoning = validation.get("field_reasoning", {})
 
         field_map = {
             "pe": "pe", "pb": "pb", "ev_ebitda": "ev_ebitda",
@@ -119,30 +145,27 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
             "revenue_growth": "revenue_growth", "debt_equity": "debt_equity",
             "beta": "beta", "dividend_yield": "dividend_yield",
             "rsi": "rsi", "fair_value": "fair_value",
-            "target_price": "target_price", "upside_pct": "upside_pct"
+            "target_price": "target_price", "stop_loss": "stop_loss",
+            "upside_pct": "upside_pct"
         }
 
         corrected_fields = []
         for key, data_key in field_map.items():
             corrected_val = corrections.get(key)
             if corrected_val is None:
-                continue  # null = no correction needed
+                continue
             original = corrected_data.get(data_key)
-            if corrected_val == "N/A":
-                corrected_data[data_key] = None
-                corrected_fields.append(f"{data_key}: {original} → N/A (non stimabile)")
-            else:
-                # Try to convert to float
-                try:
-                    num_val = float(corrected_val)
-                    if num_val != original:
-                        corrected_data[data_key] = round(num_val, 2)
-                        corrected_fields.append(f"{data_key}: {original} → {round(num_val, 2)}")
-                except (TypeError, ValueError):
-                    pass  # ignore non-numeric corrections
+            try:
+                num_val = float(corrected_val)
+                if original is None or abs(num_val - float(original)) > 0.001:
+                    corrected_data[data_key] = round(num_val, 2)
+                    corrected_fields.append(f"{data_key}: {original} → {round(num_val, 2)}")
+            except (TypeError, ValueError):
+                pass
 
         # Recalculate upside if target was corrected
-        if "target_price" in [c.split(":")[0] for c in corrected_fields]:
+        corrected_keys = [c.split(":")[0].strip() for c in corrected_fields]
+        if "target_price" in corrected_keys:
             tp = corrected_data.get("target_price")
             cp = corrected_data.get("current_price")
             if tp and cp and cp > 0:
@@ -154,15 +177,17 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
             "status": "completed",
             "score": validation.get("validation_score", 100),
             "reliability": validation.get("data_reliability", "Media"),
-            "issues": validation.get("issues_found", []),
+            "issues": [r for r in field_reasoning.values() if r],
             "corrected_fields": corrected_fields,
+            "field_reasoning": {k: v for k, v in field_reasoning.items() if v},
             "summary": validation.get("summary", ""),
         }
 
         return corrected_data
 
     except Exception as e:
-        # Never block the app if validation fails
+        import traceback
+        print(f"[Validator error] {e}\n{traceback.format_exc()}")
         return {
             **data,
             "validation": {
@@ -171,7 +196,7 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
                 "reliability": "N/A",
                 "issues": [f"Errore validazione: {str(e)}"],
                 "corrected_fields": [],
+                "field_reasoning": {},
                 "summary": "Validazione non disponibile",
             }
         }
-        
