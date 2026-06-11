@@ -347,7 +347,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # --- Signal label ---
         if score >= 65:
             signal = "🟢 BUY"
-        elif score >= 45:
+        elif score >= 50:
             signal = "🟡 HOLD"
         else:
             signal = "🔴 SELL / AVOID"
@@ -517,8 +517,8 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # ══════════════════════════════════════════════════════════════════
 
         # REGOLA 1: Se AVOID/SELL → niente target rialzista, mostra downside
-        is_avoid = score < 45
-        is_hold = 45 <= score < 65
+        is_avoid = score < 50
+        is_hold = 50 <= score < 65
 
         if is_avoid:
             entry_price = None
