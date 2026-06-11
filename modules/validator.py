@@ -145,16 +145,34 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
                 raw = _call(prompt, gemini_key, 900, search=False)
             gemini_ok = True
         except Exception as gemini_err:
-            print(f"[Validator] Gemini failed: {str(gemini_err)[:100]}")
+            print(f"[Validator] Gemini failed: {str(gemini_err)[:150]}")
 
         # Fallback to Groq whenever Gemini fails for any reason
-        if not raw and groq_key:
-            print(f"[Validator] Switching to Groq fallback...")
-            try:
-                raw = _call_groq(prompt, groq_key, 900)
-                print(f"[Validator] Groq OK")
-            except Exception as groq_err:
-                print(f"[Validator] Groq also failed: {groq_err}")
+        if not raw:
+            print(f"[Validator] groq_key present: {bool(groq_key)} | len: {len(groq_key) if groq_key else 0}")
+            if groq_key:
+                print(f"[Validator] Switching to Groq fallback...")
+                try:
+                    # Groq has smaller context — use shorter prompt
+                    groq_prompt = f"""Analista finanziario. Dati per {name} ({ticker}):
+Settore:{sector} | Prezzo:{price} {currency}
+P/E:{data.get('pe')} | P/B:{data.get('pb')} | ROE:{data.get('roe')}% | Margine:{data.get('profit_margin')}%
+D/E:{data.get('debt_equity')} | Beta:{data.get('beta')} | Dividend:{data.get('dividend_yield')}%
+EV/EBITDA:{data.get('ev_ebitda')} | Crescita:{data.get('revenue_growth')}%
+Fair Value attuale:{data.get('fair_value')}
+
+Campi mancanti (None): {missing}
+Correggi anomalie (ROE>150 dividi/100, dividend>20 dividi/10, P/E negativo=null se margine<0).
+Stima valori mancanti dal settore.
+
+Rispondi SOLO con JSON:
+{{"validation_score":80,"corrections":{{"pe":null,"pb":null,"ev_ebitda":null,"roe":null,"profit_margin":null,"revenue_growth":null,"debt_equity":null,"beta":null,"dividend_yield":null,"fair_value":null}},"field_reasoning":{{"pe":null,"pb":null,"ev_ebitda":null,"roe":null,"profit_margin":null,"revenue_growth":null,"debt_equity":null,"beta":null,"dividend_yield":null,"fair_value":null}},"data_reliability":"Media","summary":"Dati validati da Groq"}}"""
+                    raw = _call_groq(groq_prompt, groq_key, 600)
+                    print(f"[Validator] Groq OK, raw length: {len(raw)}")
+                except Exception as groq_err:
+                    print(f"[Validator] Groq also failed: {groq_err}")
+            else:
+                print(f"[Validator] No Groq key available!")
 
         if not raw:
             raise Exception("Gemini e Groq non disponibili")
