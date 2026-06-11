@@ -80,10 +80,13 @@ def _call_ai(prompt: str, gemini_key: str, groq_key: str, max_tokens: int = 800)
 
 def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     """Summary sopra il grafico."""
+    signal = data.get('signal', 'HOLD')
+    verdict = "BUY" if "BUY" in signal else ("AVOID" if "AVOID" in signal or "SELL" in signal else "HOLD")
     prompt = f"""Analista finanziario senior. Analizza {data['name']} ({data['ticker']}) in italiano in 3 frasi max:
 1. Fondamentali: P/E {data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%
-2. Tecnica: RSI {data.get('rsi','N/A')}, prezzo {'sopra' if data.get('ma50') and data.get('current_price',0) > data.get('ma50',0) else 'sotto'} MA50
-3. Verdetto: BUY/HOLD/AVOID. Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}."""
+2. Tecnica: RSI {data.get('rsi','N/A')}, prezzo {'sopra' if data.get('ma50') and data.get('current_price',0) > data.get('ma50',0) else 'sotto'} MA50, score {data.get('score',0)}/100
+3. Conferma il verdetto già calcolato dal sistema: {verdict}. Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}.
+IMPORTANTE: il verdetto DEVE essere {verdict} — non cambiarlo."""
     try:
         return _call_ai(prompt, api_key, groq_key, 250)
     except Exception as e:
@@ -94,8 +97,9 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
 def reason_time_to_target(data: dict, api_key: str, groq_key: str = "") -> str:
     """Stima temporale ragionata."""
     upside = data.get('upside_pct', 0) or 0
+    upside_str = f"{upside:.1f}"
     prompt = f"""Analista quantitativo. Stima tempo realistico per {data['name']} ({data['ticker']}) a raggiungere target.
-Prezzo:{data.get('current_price')} | Target:{data.get('target_price')} | Upside:{upside:.1f}%
+Prezzo:{data.get('current_price')} | Target:{data.get('target_price')} | Upside:{upside_str}%
 Settore:{data.get('sector','N/A')} | Beta:{data.get('beta','N/A')} | ATR:{data.get('atr','N/A')}
 Earnings:{data.get('next_earnings_date','N/A')}
 Rispondi in italiano: stima (es "6-9 mesi"), motivazione 2 frasi, 1 catalizzatore. Max 80 parole."""
@@ -106,16 +110,18 @@ Rispondi in italiano: stima (es "6-9 mesi"), motivazione 2 frasi, 1 catalizzator
         return None
 
 
-def analyze_sentiment_narrative(data: dict, sent: dict, api_key: str) -> str:
+def analyze_sentiment_narrative(data: dict, sent: dict, api_key: str, groq_key: str = "") -> str:
     """Analisi narrativa sentiment."""
     an = sent.get("analyst", {})
     sh = sent.get("short", {})
     ea = sent.get("earnings", {})
     op = sent.get("options", {})
-    prompt = f"""Analista senior Wall Street. Briefing su {data['name']} ({data['ticker']}) in italiano max 200 parole.
-Consensus:{an.get('consensus_label','N/A')} {an.get('n_analysts',0)} analisti target:{an.get('target_mean','N/A')} upside:{an.get('upside','N/A')}%
-Short:{sh.get('short_pct','N/A')}% Put/Call:{op.get('put_call_ratio','N/A')} Earnings media:{ea.get('avg_surprise','N/A')}% prossimi:{ea.get('next_earnings','N/A')}
-4 punti: consensus/paradosso, opzioni/short, earnings/catalyst, verdetto."""
+    prompt = (
+        f"Analista senior Wall Street. Briefing su {data['name']} ({data['ticker']}) in italiano max 200 parole.\n"
+        f"Consensus:{an.get('consensus_label','N/A')} {an.get('n_analysts',0)} analisti target:{an.get('target_mean','N/A')} upside:{an.get('upside','N/A')}%\n"
+        f"Short:{sh.get('short_pct','N/A')}% Put/Call:{op.get('put_call_ratio','N/A')} Earnings media:{ea.get('avg_surprise','N/A')}% prossimi:{ea.get('next_earnings','N/A')}\n"
+        "4 punti: consensus/paradosso, opzioni/short, earnings/catalyst, verdetto."
+    )
     try:
         return _call_ai(prompt, api_key, groq_key, 500)
     except Exception as e:
