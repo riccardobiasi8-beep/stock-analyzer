@@ -321,6 +321,16 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
 
         score = max(0, min(100, score))
 
+        # ── Fondamentali negativi → cap score a AVOID ────────────────────
+        # Un'azienda in perdita (margine o ROE negativi) non può essere BUY
+        try:
+            _margin = profit_margin if profit_margin is not None else 0
+            _roe_val = roe if roe is not None else 0
+            if _margin < 0 or _roe_val < 0:
+                score = min(score, 49)  # forza AVOID
+        except Exception:
+            pass
+
         # ── Entry price (dipende dallo score) ─────────────────────────────
         if score >= 65:  # BUY
             entry_price = round(current_price * 0.98 if rsi_val < 50 else current_price, 2)
@@ -561,14 +571,14 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 else:
                     # Label mostra X.X anni → arrotonda a 1 decimale di anni poi riconverti
                     years_display = round(estimated_months / 12.0, 1)
-                    months_sync = years_display * 12.0
+                    months_sync = round(years_display * 12.0, 1)  # FIX: round to avoid 19.200000000003
 
                 if months_sync < 12.0:
                     # Tasso lineare: (upside / mesi) * 12
                     annualized_return = round((upside / months_sync) * 12.0, 2)
                 else:
-                    # CAGR: usa anni sincronizzati col label
-                    years_sync = months_sync / 12.0
+                    # CAGR: usa years_sync con precisione 4 decimali per evitare float drift
+                    years_sync = round(months_sync / 12.0, 4)
                     annualized_return = round((pow(target_price / current_price, 1.0 / years_sync) - 1) * 100, 2)
                 annualized_return = min(annualized_return, 200.0)
         except Exception:
