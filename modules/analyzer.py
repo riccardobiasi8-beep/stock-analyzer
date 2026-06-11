@@ -548,17 +548,27 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 entry_price = None
 
         # Rendimento annualizzato — deterministico, NON generato dall'AI
-        # Regola: < 12 mesi → lineare puro; >= 12 mesi → CAGR
+        # IMPORTANTE: sincronizza estimated_months con il valore visualizzato nel time_label
+        # così CAGR e label mostrano lo stesso orizzonte temporale
         try:
             annualized_return = None
             if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and upside is not None and target_price and current_price:
+                # Arrotonda mesi al valore visualizzato nel label (evita drift)
                 if estimated_months < 12.0:
-                    # Tasso lineare: (upside / mesi) * 12
-                    annualized_return = round((upside / estimated_months) * 12.0, 2)
+                    # Label mostra mesi interi → arrotonda a intero
+                    months_sync = round(estimated_months)
                 else:
-                    # CAGR: (Target/PrezzoAttuale)^(12/mesi) - 1
-                    years = estimated_months / 12.0
-                    annualized_return = round((pow(target_price / current_price, 1.0 / years) - 1) * 100, 2)
+                    # Label mostra X.X anni → arrotonda a 1 decimale di anni poi riconverti
+                    years_display = round(estimated_months / 12.0, 1)
+                    months_sync = years_display * 12.0
+
+                if months_sync < 12.0:
+                    # Tasso lineare: (upside / mesi) * 12
+                    annualized_return = round((upside / months_sync) * 12.0, 2)
+                else:
+                    # CAGR: usa anni sincronizzati col label
+                    years_sync = months_sync / 12.0
+                    annualized_return = round((pow(target_price / current_price, 1.0 / years_sync) - 1) * 100, 2)
                 annualized_return = min(annualized_return, 200.0)
         except Exception:
             annualized_return = None
