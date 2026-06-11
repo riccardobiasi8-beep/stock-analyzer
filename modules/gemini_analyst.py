@@ -79,36 +79,54 @@ def _call_ai(prompt: str, gemini_key: str, groq_key: str, max_tokens: int = 800)
 
 
 def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
-    """Summary sopra il grafico."""
+    """Summary sopra il grafico — usa dati ESATTI dalla scheda."""
     signal = data.get("signal", "HOLD")
     score = data.get("score", 50)
     verdict = "BUY" if "BUY" in signal else ("AVOID" if "AVOID" in signal or "SELL" in signal else "HOLD")
     rsi = data.get("rsi", 50) or 50
     price = data.get("current_price", 0) or 0
     fair_value = data.get("fair_value")
+    entry = data.get("entry_price")
+    target = data.get("target_price")
+    stop = data.get("stop_loss")
+    upside = data.get("upside_pct")
+    cur = data.get("currency", "USD")
+    # RSI interpretation
     if rsi >= 70: rsi_desc = f"ipercomprato ({rsi}, >70)"
     elif rsi <= 30: rsi_desc = f"ipervenduto ({rsi}, <30)"
-    else: rsi_desc = f"neutro ({rsi}, range 30-70 = nessun estremo)"
+    else: rsi_desc = f"neutro ({rsi}, range normale 30-70)"
+    # Build entry string
+    entry_str = f"Entry:{entry} {cur}" if entry else "Entry: nessun ingresso consigliato ora"
+    target_str = f"Target:{target} {cur}" if target else "Target: ribassista"
+    stop_str = f"Stop:{stop} {cur}" if stop else ""
+    # Fair value context
     fv_note = ""
-    if fair_value and price:
-        if price > fair_value * 1.05:
-            fv_note = f"Prezzo {price} SOPRA fair value {fair_value} = sopravvalutato. "
-        elif price < fair_value * 0.95:
-            fv_note = f"Prezzo {price} SOTTO fair value {fair_value} = sottovalutato. "
+    if fair_value and price and upside:
+        if verdict == "HOLD" and upside > 15:
+            fv_note = (f"IMPORTANTE: nonostante un upside teorico del +{upside}% verso il Fair Value {fair_value} {cur}, "
+                       f"il basso score ({score}/100) impone HOLD. Spiega nel testo PERCHE lo score e basso "
+                       f"(es. RSI, fondamentali deboli, trend negativo) e giustifica la prudenza.")
+        elif price > (fair_value or 0) * 1.05:
+            fv_note = f"Prezzo sopra Fair Value {fair_value} {cur} = sopravvalutato."
     prompt = (
         f"Analista finanziario. Analizza {data['name']} ({data['ticker']}) in italiano, 3 frasi.\n"
         f"Fondamentali: P/E {data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%\n"
-        f"Tecnica: RSI = {rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price > (data.get('ma50') or 0) else 'sotto'} MA50. {fv_note}\n"
-        f"Sistema ha calcolato: {verdict} (score {score}/100). Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}.\n"
-        f"REGOLE: verdetto DEVE essere {verdict}. RSI 30-70 = neutro non estremo. "
-        f"Se score<60 spiega perche HOLD/AVOID. Upside % sempre da prezzo attuale non da entry."
+        f"Tecnica: RSI={rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price>(data.get('ma50') or 0) else 'sotto'} MA50. Score {score}/100.\n"
+        f"{fv_note}\n"
+        f"Dati ESATTI da usare nel testo: {entry_str}. {target_str}. {stop_str}.\n"
+        f"Verdetto sistema: {verdict}. USA QUESTI NUMERI ESATTI, non arrotondarli diversamente.\n"
+        f"REGOLE OBBLIGATORIE:\n"
+        f"- Verdetto finale DEVE essere {verdict}\n"
+        f"- RSI tra 30-70 e neutro, non scrivere ipervenduto/ipercomprato\n"
+        f"- Se HOLD: NON dire di comprare subito. Dire di ATTENDERE{' un ingresso a '+str(entry)+' '+cur if entry else 'segnali migliori'}.\n"
+        f"- Se AVOID: dire chiaramente di evitare/vendere, niente strategia rialzista\n"
+        f"- Usa i numeri esatti forniti sopra, non inventarne altri"
     )
     try:
-        return _call_ai(prompt, api_key, groq_key, 300)
+        return _call_ai(prompt, api_key, groq_key, 350)
     except Exception as e:
         print(f"Gemini analyze_stock error: {e}")
         return None
-
 
 def reason_time_to_target(data: dict, api_key: str, groq_key: str = "") -> str:
     """Stima temporale ragionata."""
