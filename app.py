@@ -537,7 +537,7 @@ if page == "🔍 Analisi Titolo":
                 if _val_status_prev not in ["completed"]:
                     _val_placeholder.info("🔍 Gemini sta validando i dati...")
                     try:
-                        data = validate_stock_data(data, _gkey)
+                        data = validate_stock_data(data, _gkey, st.secrets.get("GROQ_API_KEY",""))
                         _val_status = data.get("validation", {}).get("status")
                         _n_corr = len(data.get("validation", {}).get("corrected_fields", []))
                         _summary = data.get("validation", {}).get("summary", "")
@@ -571,7 +571,7 @@ if page == "🔍 Analisi Titolo":
                 if _val.get("status") in [None, "skipped", "error"]:
                     with st.spinner("🔍 Validazione dati con Gemini..."):
                         try:
-                            data = validate_stock_data(data, _gkey)
+                            data = validate_stock_data(data, _gkey, st.secrets.get("GROQ_API_KEY",""))
                             st.session_state.last_data = data
                         except Exception as _ve2:
                             print(f"[Validator retry error] {_ve2}")
@@ -700,7 +700,7 @@ if page == "🔍 Analisi Titolo":
                         _time.sleep(2)  # delay after validation to avoid rate limit
                         try:
                             if _use_gemini:
-                                ai_text = analyze_stock(data, gemini_key)
+                                ai_text = analyze_stock(data, gemini_key, st.secrets.get("GROQ_API_KEY",""))
                             else:
                                 import requests as req
                                 _prompt = f"""Analista finanziario esperto. Analizza {data['name']} ({data['ticker']}) in italiano, max 100 parole.
@@ -746,7 +746,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                             import time as _time2
                             _time2.sleep(3)  # delay to avoid rate limit
                             try:
-                                t_reasoning = reason_time_to_target(data, gemini_key)
+                                t_reasoning = reason_time_to_target(data, gemini_key, st.secrets.get("GROQ_API_KEY",""))
                                 st.session_state[_time_cache] = t_reasoning
                             except Exception:
                                 st.session_state[_time_cache] = None
@@ -1073,7 +1073,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                         with st.spinner("Gemini analizza il sentiment..."):
                             try:
                                 if gemini_key:
-                                    _sent_text = analyze_sentiment_narrative(data, sent, gemini_key)
+                                    _sent_text = analyze_sentiment_narrative(data, sent, gemini_key, st.secrets.get("GROQ_API_KEY",""))
                                 else:
                                     import requests as _req
                                     an = sent.get("analyst", {})
