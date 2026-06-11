@@ -538,17 +538,22 @@ if page == "🔍 Analisi Titolo":
                     data = validate_stock_data(data, _gkey)
                     _val_status = data.get("validation", {}).get("status")
                     _n_corr = len(data.get("validation", {}).get("corrected_fields", []))
+                    _summary = data.get("validation", {}).get("summary", "")
                     if _val_status == "completed" and _n_corr > 0:
-                        _val_placeholder.success(f"✅ Validazione completata — {_n_corr} campo/i aggiornato/i da Gemini")
+                        _val_placeholder.success(f"✅ Gemini: {_n_corr} correzioni — {_summary}")
                     elif _val_status == "completed":
-                        _val_placeholder.success("✅ Dati validati — nessuna anomalia rilevata")
+                        _val_placeholder.success(f"✅ Dati validati — {_summary or 'nessuna anomalia'}")
+                    elif _val_status == "error":
+                        _err = data.get("validation", {}).get("issues", ["?"])
+                        _val_placeholder.error(f"❌ Errore validazione: {_err[0] if _err else '?'}")
                     else:
-                        _val_placeholder.warning("⚠️ Validazione non completata")
-                    import time; time.sleep(1.5)
+                        _val_placeholder.warning(f"⚠️ Status: {_val_status}")
+                    import time; time.sleep(2)
                     _val_placeholder.empty()
                 except Exception as _ve:
-                    _val_placeholder.warning(f"⚠️ Validazione fallita: {str(_ve)[:80]}")
-                    print(f"[Validator exception] {_ve}")
+                    _val_placeholder.error(f"❌ Eccezione: {str(_ve)[:120]}")
+                    import traceback
+                    print(f"[App Validator Exception] {traceback.format_exc()}")
 
             st.session_state.last_data = data
             st.session_state.last_ticker = ticker_input
