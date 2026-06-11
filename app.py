@@ -528,6 +528,12 @@ if page == "🔍 Analisi Titolo":
         _gkey = st.secrets.get("GEMINI_API_KEY", "")
         
         if ticker_input != st.session_state.last_ticker or st.session_state.last_data is None:
+            # Clear ALL AI caches for previous ticker to prevent data contamination
+            prev_ticker = st.session_state.get('last_ticker', '')
+            if prev_ticker and prev_ticker != ticker_input:
+                for _cache_key in [f"ai_{prev_ticker}", f"time_{prev_ticker}", f"sent_analysis_{prev_ticker}"]:
+                    if _cache_key in st.session_state:
+                        del st.session_state[_cache_key]
             with st.spinner(f"Carico dati per {ticker_input}..."):
                 data = get_stock_data(ticker_input, period=period)
             
