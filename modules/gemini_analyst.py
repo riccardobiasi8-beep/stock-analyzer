@@ -113,17 +113,22 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
                        f"(es. RSI, fondamentali deboli, trend negativo) e giustifica la prudenza.")
         elif price > (fair_value or 0) * 1.05:
             fv_note = f"Prezzo sopra Fair Value {fair_value} {cur} = sopravvalutato."
+    # FIX 6: HOLD hides target/stop from text
+    if verdict == "HOLD":
+        ops_str = "Non citare target ne stop nel testo."
+    else:
+        ops_str = f"{target_str}. {stop_str}"
     prompt = (
         f"Analista finanziario. Analizza {data['name']} ({data['ticker']}) in italiano, 3 frasi.\n"
         f"Fondamentali: P/E {'N/A (utili negativi)' if (data.get('profit_margin') or 0) < 0 else data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%\n"
         f"Tecnica: RSI={rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price>(data.get('ma50') or 0) else 'sotto'} MA50. Score {score}/100.\n"
         f"{fv_note}\n"
-        f"Dati ESATTI da usare nel testo: {entry_str}. {target_str}. {stop_str}.\n"
+        f"Dati ESATTI: {entry_str}. {ops_str}.\n"
         f"Verdetto sistema: {verdict}. USA QUESTI NUMERI ESATTI, non arrotondarli diversamente.\n"
         f"REGOLE OBBLIGATORIE:\n"
         f"- Verdetto finale DEVE essere {verdict}\n"
         f"- RSI tra 30-70 e neutro, non scrivere ipervenduto/ipercomprato\n"
-        f"- Se HOLD: NON dire di comprare subito. Dire di ATTENDERE{' un ingresso a '+str(entry)+' '+cur if entry else 'segnali migliori'}.\n"
+        f"- Se HOLD: NON citare prezzi di target o stop nel testo. Chiudi SEMPRE con: \"il verdetto del sistema e HOLD, consigliando di attendere segnali tecnici migliori o un ritracciamento del prezzo prima di valutare un posizionamento operativo.\"\n"
         f"- Se AVOID: usa SOLO i termini 'downside target' e 'stop rimbalzo' (non Target/Stop Loss). Non citare Entry. Non suggerire acquisto.\n"
         f"- Usa i numeri esatti forniti sopra, non inventarne altri"
     )
