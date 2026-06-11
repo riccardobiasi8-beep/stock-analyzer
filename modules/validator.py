@@ -1,17 +1,16 @@
 import json
 import requests
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# Uses Gemini for validation
 
 
-def validate_stock_data(data: dict, groq_key: str) -> dict:
+def validate_stock_data(data: dict, gemini_key: str) -> dict:
     """
     Passes raw stock data through Groq for validation and anomaly correction.
     Returns cleaned data with validation report.
     """
-    if not groq_key:
-        return {**data, "validation": {"status": "skipped", "issues": [], "score": None}}
+    if not gemini_key:
+        return {**data, "validation": {"status": "skipped", "issues": [], "score": None, "corrected_fields": [], "reliability": "N/A", "summary": ""}}
 
     # Build validation prompt with all extracted data
     prompt = f"""Sei un analista finanziario senior. Ti fornisco dati estratti da Yahoo Finance per {data.get('name', '?')} ({data.get('ticker', '?')}).
@@ -85,22 +84,22 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
 
     try:
         response = requests.post(
-            GROQ_API_URL,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {groq_key}"
-            },
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}",
+            headers={"Content-Type": "application/json"},
             json={
-                "model": GROQ_MODEL,
-                "max_tokens": 800,
-                "temperature": 0.1,  # low temperature for factual validation
-                "messages": [{"role": "user", "content": prompt}]
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 800}
             },
-            timeout=20
+            timeout=25
         )
 
         result = response.json()
-        raw_text = result["choices"][0]["message"]["content"].strip()
+        if "error" in result:
+            raise Exception(result["error"].get("message", "Gemini error"))
+        candidates = result.get("candidates", [])
+        if not candidates:
+            raise Exception("Nessuna risposta da Gemini")
+        raw_text = candidates[0]["content"]["parts"][0]["text"].strip()
 
         # Clean JSON if wrapped in markdown
         if "```json" in raw_text:
@@ -175,3 +174,4 @@ Usa null per campi già corretti. Fornisci numeri stimati per anomalie, non stri
                 "summary": "Validazione non disponibile",
             }
         }
+        
