@@ -208,5 +208,14 @@ def run_screener(tickers: list, min_score: int = 60, max_results: int = 20) -> p
         return pd.DataFrame()
 
     df = pd.DataFrame(results)
-    df = df[df["Score"] >= min_score].sort_values("Score", ascending=False)
+    df = df[df["Score"] >= min_score]
+
+    # Sort by: best annualized return first, then score as tiebreaker
+    # Titles with no annualized_return go to the bottom
+    df["_sort_return"] = df["Rend. annualizzato"].fillna(-999)
+    df = df.sort_values(
+        ["_sort_return", "Score"],
+        ascending=[False, False]
+    ).drop(columns=["_sort_return"])
+
     return df.head(max_results)
