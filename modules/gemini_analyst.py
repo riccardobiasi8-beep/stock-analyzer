@@ -96,10 +96,15 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     elif rsi <= 30: rsi_desc = f"ipervenduto ({rsi}, <30)"
     else: rsi_desc = f"neutro ({rsi}, range normale 30-70)"
     # Build entry string
-    entry_str = f"Entry:{entry} {cur}" if entry else "Entry: nessun ingresso consigliato ora"
-    target_str = f"Target:{target} {cur}" if target else "Target: ribassista"
-    stop_str = f"Stop:{stop} {cur}" if stop else ""
-    # Fair value context
+    is_avoid = "AVOID" in signal or "SELL" in signal or score < 45
+    if is_avoid:
+        entry_str = "Entry: nessun ingresso (AVOID)"
+        target_str = f"Downside target:{target} {cur}" if target else "Downside target: ribassista"
+        stop_str = f"Stop rimbalzo:{stop} {cur}" if stop else ""
+    else:
+        entry_str = f"Entry:{entry} {cur}" if entry else "Entry: attendi segnale"
+        target_str = f"Target:{target} {cur}" if target else "Target: da definire"
+        stop_str = f"Stop Loss:{stop} {cur}" if stop else ""
     fv_note = ""
     if fair_value and price and upside:
         if verdict == "HOLD" and upside > 15:
@@ -119,7 +124,7 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
         f"- Verdetto finale DEVE essere {verdict}\n"
         f"- RSI tra 30-70 e neutro, non scrivere ipervenduto/ipercomprato\n"
         f"- Se HOLD: NON dire di comprare subito. Dire di ATTENDERE{' un ingresso a '+str(entry)+' '+cur if entry else 'segnali migliori'}.\n"
-        f"- Se AVOID: dire chiaramente di evitare/vendere, niente strategia rialzista\n"
+        f"- Se AVOID: usa SOLO i termini 'downside target' e 'stop rimbalzo' (non Target/Stop Loss). Non citare Entry. Non suggerire acquisto.\n"
         f"- Usa i numeri esatti forniti sopra, non inventarne altri"
     )
     try:
