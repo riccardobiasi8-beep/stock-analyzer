@@ -642,16 +642,18 @@ if page == "🔍 Analisi Titolo":
                 is_ai = field_key in _corrected_fields
                 display_val = f"{value}{suffix}" if value is not None else "N/A"
                 reasoning = _field_reasoning.get(field_key, "")
+                # Escape HTML in reasoning to prevent injection
+                import html as _html
+                reasoning_safe = _html.escape(str(reasoning)) if reasoning else ""
                 if is_ai:
-                    tooltip_html = f'title="{reasoning}"' if reasoning else ''
                     st.markdown(f"""<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>
     <div style='font-size:0.65rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>{label}</div>
     <div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px;display:flex;align-items:center;gap:6px'>
         {display_val}
-        <span {tooltip_html} style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px;cursor:help'>ⓘ AI</span>
+        <span title='{reasoning_safe[:200]}' style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px;cursor:help'>ⓘ AI</span>
     </div>
     {f'<div style="font-size:0.75rem;color:#48484a;margin-top:2px">{delta}</div>' if delta else ''}
-    {f'<div style="font-size:0.7rem;color:#636366;margin-top:6px;line-height:1.4;border-top:0.5px solid #2c2c2e;padding-top:6px">{reasoning}</div>' if reasoning else ''}
+    {f'<div style="font-size:0.7rem;color:#636366;margin-top:6px;line-height:1.4;border-top:0.5px solid #2c2c2e;padding-top:6px">{reasoning_safe[:150]}{"…" if len(reasoning_safe)>150 else ""}</div>' if reasoning_safe else ''}
 </div>""", unsafe_allow_html=True)
                 else:
                     st.metric(label, display_val, delta=delta)
@@ -749,14 +751,16 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     if color is None: color = '#ffffff'
                     is_ai = bool(ai_field and ai_field in _corrected_fields)
                     reasoning = _field_reasoning.get(ai_field, '') if ai_field else ''
+                    import html as _html
+                    reasoning_safe = _html.escape(str(reasoning)) if reasoning else ''
                     ai_span = '<span style="font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px">ⓘ AI</span>'
                     badge = ' ' + ai_span if is_ai else ''
                     vc = '#0a84ff' if is_ai else color
                     bo = 'border:0.5px solid #0a84ff44;' if is_ai else ''
                     val_str = str(value) if value else '\u2014'
-                    r_short = (reasoning[:90] + '\u2026') if len(reasoning) > 90 else reasoning
-                    reason_html = f'<div style="font-size:0.62rem;color:#636366;margin-top:4px;line-height:1.3">{r_short}</div>' if (is_ai and reasoning) else ''
-                    ttip = reasoning.replace('"', "'") if reasoning else ''
+                    r_short = (reasoning_safe[:90] + '\u2026') if len(reasoning_safe) > 90 else reasoning_safe
+                    reason_html = f'<div style="font-size:0.62rem;color:#636366;margin-top:4px;line-height:1.3">{r_short}</div>' if (is_ai and reasoning_safe) else ''
+                    ttip = reasoning_safe[:200] if reasoning_safe else ''
                     return (
                         f"<div style='background:#000000;padding:11px 14px;{bo}' title='{ttip}'>"
                         f"<div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>{label}{badge}</div>"
