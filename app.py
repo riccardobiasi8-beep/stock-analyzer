@@ -767,16 +767,29 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 netg_str = f'+{net_g}%' if net_g else '—'
                 annr_str = f'+{ann_r}%' if ann_r else '—'
                 fv_str = fmt(data.get('fair_value'), cur) if data.get('fair_value') else '—'
-                _cells = [
-                    _cell('Entry', fmt(data['entry_price'], cur)),
-                    _cell('Target', fmt(data['target_price'], cur), '#ff9f0a', 'target_price'),
-                    _cell('Stop Loss', fmt(data['stop_loss'], cur), '#ff453a'),
-                    _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
-                    _cell('Upside lordo', upside_str, '#30d158', 'upside_pct'),
-                    _cell('Netto (-26%)', netg_str, '#30d158'),
-                    _cell('Rend. annuo', annr_str, '#bf5af2'),
-                    _cell('Tempo', t_label[:25] if t_label else '—', '#0a84ff'),
-                ]
+                is_avoid = data.get('is_avoid', False)
+                if is_avoid:
+                    _cells = [
+                        _cell('Entry', '—'),
+                        _cell('Downside target', fmt(data['target_price'], cur), '#ff453a', 'target_price'),
+                        _cell('Stop rimbalzo', fmt(data['stop_loss'], cur), '#ff9f0a'),
+                        _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
+                        _cell('Downside potenz.', upside_str, '#ff453a', 'upside_pct'),
+                        _cell('Netto (-26%)', netg_str, '#ff453a'),
+                        _cell('Rend. annuo', '—', '#636366'),
+                        _cell('Valutazione', 'EVITA', '#ff453a'),
+                    ]
+                else:
+                    _cells = [
+                        _cell('Entry', fmt(data['entry_price'], cur)),
+                        _cell('Target', fmt(data['target_price'], cur), '#ff9f0a', 'target_price'),
+                        _cell('Stop Loss', fmt(data['stop_loss'], cur), '#ff453a'),
+                        _cell('Fair Value', fv_str, '#ffffff', 'fair_value'),
+                        _cell('Upside lordo', upside_str, '#30d158', 'upside_pct'),
+                        _cell('Netto (-26%)', netg_str, '#30d158'),
+                        _cell('Rend. annuo', annr_str, '#bf5af2'),
+                        _cell('Tempo', t_label[:25] if t_label else '—', '#0a84ff'),
+                    ]
                 _grid = ''.join(_cells)
                 st.markdown(
                     f"<div style='display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#2c2c2e;border-radius:12px;overflow:hidden;margin-bottom:12px'>{_grid}</div>",
