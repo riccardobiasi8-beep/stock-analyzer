@@ -645,20 +645,14 @@ if page == "🔍 Analisi Titolo":
             def ai_metric(label, field_key, value, suffix="", delta=None):
                 is_ai = field_key in _corrected_fields
                 display_val = f"{value}{suffix}" if value is not None else "N/A"
-                reasoning = _field_reasoning.get(field_key, "")
-                # Escape HTML in reasoning to prevent injection
-                import html as _html
-                import re as _re_html
-                reasoning_safe = _re_html.sub(r'<[^>]+>', '', str(reasoning)).strip() if reasoning else ''
                 if is_ai:
-                    st.markdown(f"""<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>
-    <div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px;display:flex;align-items:center;gap:6px'>
-        {display_val}
-        <span title='{reasoning_safe[:200]}' style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px;cursor:help'>ⓘ AI</span>
-    </div>
-    {f'<div style="font-size:0.75rem;color:#48484a;margin-top:2px">{delta}</div>' if delta else ''}
-    {f'<div style="font-size:0.7rem;color:#636366;margin-top:6px;line-height:1.4;border-top:0.5px solid #2c2c2e;padding-top:6px">{reasoning_safe[:150]}{"…" if len(reasoning_safe)>150 else ""}</div>' if reasoning_safe else ''}
-</div>""", unsafe_allow_html=True)
+                    st.markdown(
+                        f"<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>"
+                        f"<div style='font-size:0.65rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>{label}</div>"
+                        f"<div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px'>"
+                        f"{display_val} <span style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px'>ⓘ AI</span>"
+                        f"</div></div>",
+                        unsafe_allow_html=True)
                 else:
                     st.metric(label, display_val, delta=delta)
 
@@ -755,25 +749,19 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     _time_reasoning = None
 
                 # Grid metriche
+                # Grid metriche
                 def _cell(label, value, color=None, ai_field=None):
-                    if color is None: color = '#ffffff'
+                    if color is None: color = "#ffffff"
                     is_ai = bool(ai_field and ai_field in _corrected_fields)
-                    reasoning = _field_reasoning.get(ai_field, '') if ai_field else ''
-                    import re as _re2
-                    reasoning_safe = _re2.sub(r'<[^>]+>', '', str(reasoning)).strip() if reasoning else ''
-                    ai_span = '<span style="font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px">ⓘ AI</span>'
-                    badge = ' ' + ai_span if is_ai else ''
-                    vc = '#0a84ff' if is_ai else color
-                    bo = 'border:0.5px solid #0a84ff44;' if is_ai else ''
-                    val_str = str(value) if value else '\u2014'
-                    r_short = (reasoning_safe[:90] + '\u2026') if len(reasoning_safe) > 90 else reasoning_safe
-                    reason_html = f'<div style="font-size:0.62rem;color:#636366;margin-top:4px;line-height:1.3">{r_short}</div>' if (is_ai and reasoning_safe) else ''
-                    ttip = reasoning_safe[:200] if reasoning_safe else ''
+                    ai_span = "<span style=\"font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px\">ⓘ AI</span>"
+                    badge = " " + ai_span if is_ai else ""
+                    vc = "#0a84ff" if is_ai else color
+                    bo = "border:0.5px solid #0a84ff44;" if is_ai else ""
+                    val_str = str(value) if value else "\u2014"
                     return (
-                        f"<div style='background:#000000;padding:11px 14px;{bo}' title='{ttip}'>"
+                        f"<div style='background:#000000;padding:11px 14px;{bo}'>"
                         f"<div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>{label}{badge}</div>"
-                        f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val_str}</div>"
-                        f"{reason_html}</div>")
+                        f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val_str}</div></div>")
 
                 upside_str = f'+{upside}%' if upside else '—'
                 netg_str = f'+{net_g}%' if net_g else '—'
