@@ -2,6 +2,9 @@ import json
 import requests
 import html
 
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 GEMINI_ENDPOINTS = [
     ("gemini-2.0-flash-lite", "v1beta"),
     ("gemini-2.0-flash-lite-001", "v1beta"),
@@ -54,7 +57,22 @@ def _call(prompt: str, api_key: str, max_tokens: int = 1000, search: bool = Fals
     raise Exception(f"Tutti i modelli falliti: {last_error}")
 
 
-def validate_stock_data(data: dict, gemini_key: str) -> dict:
+def _call_groq(prompt: str, api_key: str, max_tokens: int = 1000) -> str:
+    """Groq fallback when Gemini quota is exhausted."""
+    resp = requests.post(
+        GROQ_URL,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        json={"model": GROQ_MODEL, "max_tokens": max_tokens, "temperature": 0.1,
+              "messages": [{"role": "user", "content": prompt}]},
+        timeout=20
+    )
+    result = resp.json()
+    if "error" in result:
+        raise Exception(result["error"].get("message", "Groq error"))
+    return result["choices"][0]["message"]["content"].strip()
+
+
+def validate_stock_data(data: dict, gemini_key: str, groq_key: str = "") -> dict:
     if not gemini_key:
         return {**data, "validation": {
             "status": "skipped", "score": None, "issues": [],
@@ -121,14 +139,23 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
 }}"""
 
     try:
-        # Try with search first, fallback to without
+        # Try Gemini first, then Groq as fallback
+        raw = None
         try:
-            raw = _call(prompt, gemini_key, 900, search=True)
-        except Exception as e:
-            if "quota" in str(e).lower() or "rate" in str(e).lower():
+            try:
+                raw = _call(prompt, gemini_key, 900, search=True)
+            except Exception as e:
+                if "quota" in str(e).lower() or "rate" in str(e).lower():
+                    raise  # Let Groq handle it
+                raw = _call(prompt, gemini_key, 900, search=False)
+        except Exception as gemini_err:
+            if groq_key and ("quota" in str(gemini_err).lower() or "rate" in str(gemini_err).lower() or "falliti" in str(gemini_err).lower()):
+                print(f"[Validator] Gemini quota/failed, switching to Groq...")
+                raw = _call_groq(prompt, groq_key, 900)
+            else:
                 raise
-            print(f"[Validator] Search failed, trying without: {e}")
-            raw = _call(prompt, gemini_key, 900, search=False)
+        if not raw:
+            raise Exception("Nessuna risposta da AI")
 
         print(f"[Validator RAW] {ticker}: {repr(raw[:150])}")
 
@@ -198,4 +225,3 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
                 "field_reasoning": {}, "summary": f"Errore: {str(e)[:100]}",
             }
         }
-        
