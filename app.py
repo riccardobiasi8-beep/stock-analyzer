@@ -525,19 +525,47 @@ if page == "🔍 Analisi Titolo":
 
     # Fetch solo se ticker è diverso dall'ultimo o dati assenti
     if ticker_input:
+        _gkey = st.secrets.get("GEMINI_API_KEY", "")
+        
         if ticker_input != st.session_state.last_ticker or st.session_state.last_data is None:
             with st.spinner(f"Carico dati per {ticker_input}..."):
                 data = get_stock_data(ticker_input, period=period)
-                # Validate data with Groq
-                _gkey = st.secrets.get("GEMINI_API_KEY", "")
-                if _gkey and data and "error" not in data:
-                    with st.spinner("Validazione dati con Gemini..."):
-                        data = validate_stock_data(data, _gkey)
+            
+            if data and "error" not in data and _gkey:
+                _val_placeholder = st.empty()
+                _val_placeholder.info("🔍 Gemini sta cercando e validando i dati...")
+                try:
+                    data = validate_stock_data(data, _gkey)
+                    _val_status = data.get("validation", {}).get("status")
+                    _n_corr = len(data.get("validation", {}).get("corrected_fields", []))
+                    if _val_status == "completed" and _n_corr > 0:
+                        _val_placeholder.success(f"✅ Validazione completata — {_n_corr} campo/i aggiornato/i da Gemini")
+                    elif _val_status == "completed":
+                        _val_placeholder.success("✅ Dati validati — nessuna anomalia rilevata")
+                    else:
+                        _val_placeholder.warning("⚠️ Validazione non completata")
+                    import time; time.sleep(1.5)
+                    _val_placeholder.empty()
+                except Exception as _ve:
+                    _val_placeholder.warning(f"⚠️ Validazione fallita: {str(_ve)[:80]}")
+                    print(f"[Validator exception] {_ve}")
+
             st.session_state.last_data = data
             st.session_state.last_ticker = ticker_input
             st.session_state.last_period = period
+
         else:
             data = st.session_state.last_data
+            # Re-validate if previous run had no validation or errored
+            if _gkey and data and "error" not in data:
+                _val = data.get("validation", {})
+                if _val.get("status") in [None, "skipped", "error"]:
+                    with st.spinner("🔍 Validazione dati con Gemini..."):
+                        try:
+                            data = validate_stock_data(data, _gkey)
+                            st.session_state.last_data = data
+                        except Exception as _ve2:
+                            print(f"[Validator retry error] {_ve2}")
     elif st.session_state.last_data is not None:
         # Mostra ultima analisi quando si torna sulla pagina
         data = st.session_state.last_data
@@ -859,6 +887,13 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     st.metric("BB Upper / Lower", f"{data['bb_upper']} / {data['bb_lower']}")
 
             with tab3:
+                # Warning se tutti i fondamentali sono N/A
+                _fund_fields = ["pe","pb","ev_ebitda","roe","profit_margin","revenue_growth","debt_equity","beta","dividend_yield"]
+                _available_funds = [f for f in _fund_fields if data.get(f) is not None]
+                if len(_available_funds) == 0:
+                    st.warning("⚠️ Yahoo Finance non ha dati fondamentali per questo ticker. Gemini sta stimando i valori in base al settore — i dati mostrati sono stime AI, non dati ufficiali.")
+                elif len(_available_funds) < 4:
+                    st.info(f"ℹ️ Dati parziali: {len(_available_funds)}/9 campi disponibili da Yahoo Finance. I rimanenti sono stimati da Gemini.")
                 # ── Fair Value — 3 Pilastri ──────────────────────────────
                 cur = data['currency']
                 fv = data.get("fair_value")
