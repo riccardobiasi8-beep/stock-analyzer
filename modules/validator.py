@@ -20,11 +20,30 @@ def validate_stock_data(data: dict, gemini_key: str) -> dict:
     missing = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
                "revenue_growth","debt_equity","beta","dividend_yield"]
                if data.get(k) is None]
+    available = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
+                 "revenue_growth","debt_equity","beta","dividend_yield"]
+                 if data.get(k) is not None]
 
-    prompt = f"""Sei un analista finanziario senior di Goldman Sachs. Analizza {data.get('name','?')} ({data.get('ticker','?')}).
+    sector = data.get('sector','N/A') or 'N/A'
+    sector_note = ""
+    if sector in [None, 'N/A', '']:
+        sector_note = f"""NOTA IMPORTANTE: Settore non disponibile da Yahoo Finance.
+Identifica il settore dal ticker {data.get('ticker','?')} e nome {data.get('name','?')}.
+Esempi: ticker .F=Francoforte, .MI=Milano, .PA=Parigi, .L=Londra.
+Usa la tua conoscenza del mercato per identificare settore e applicare stime appropriate."""
 
-DATI DISPONIBILI:
-- Settore: {data.get('sector','N/A')} | Industria: {data.get('industry','N/A')}
+    prompt = f"""Sei un analista finanziario senior di Goldman Sachs con accesso a Google Search.
+
+STEP 1 — CERCA I DATI REALI:
+Cerca su Google i dati fondamentali aggiornati per {data.get('name','?')} ({data.get('ticker','?')}).
+Query suggerite:
+- "{data.get('ticker','?')} P/E ratio 2024 2025"
+- "{data.get('name','?')} ROE profit margin annual report"
+- "{data.get('ticker','?')} fundamental data Yahoo Finance"
+- "{data.get('name','?')} settore industria borsa"
+
+DATI GIÀ DISPONIBILI (da Yahoo Finance, potrebbero essere incompleti):
+- Settore: {sector} | Industria: {data.get('industry','N/A')}
 - Prezzo: {data.get('current_price')} {data.get('currency','USD')} | Market cap: {data.get('market_cap')}
 - P/E: {data.get('pe')} | P/B: {data.get('pb')} | EV/EBITDA: {data.get('ev_ebitda')}
 - ROE: {data.get('roe')}% | Margine netto: {data.get('profit_margin')}% | Crescita ricavi: {data.get('revenue_growth')}%
@@ -34,45 +53,33 @@ DATI DISPONIBILI:
 - Consensus analisti: {data.get('analyst_target')} ({data.get('n_analysts',0)} analisti) | Upside: {data.get('upside_pct')}%
 - ATR: {data.get('atr')} | Tempo stimato: {data.get('time_label')}
 
-CAMPI MANCANTI: {missing if missing else 'nessuno'}
+{sector_note}
+CAMPI MANCANTI ({len(missing)} su 9): {missing if missing else 'nessuno'}
+CAMPI DISPONIBILI: {available if available else 'nessuno — cerca tutto su Google'}
 
-HAI TRE COMPITI:
+STEP 2 — COMPILA I DATI:
+Usa i dati trovati su Google per compilare i campi mancanti con valori REALI.
+Solo se non trovi dati reali, usa stime basate sul settore.
 
-COMPITO 1 — STIMA CAMPI MANCANTI:
-Per ogni campo None, stima un valore basandoti su settore, prezzo, e altri multipli disponibili.
-Regole di stima per settore ({data.get('sector','N/A')}):
-- Beta mancante: utility=0.5, telecom=0.6, banche=1.0, industriali=1.1, tech=1.3, semiconduttori=1.5, growth=1.8
-- Debt/Equity mancante: SaaS/tech asset-light=0.2, tech hardware=0.5, industriali=0.8, utility=1.5, banche=N/A
-- Dividend yield mancante: growth tech=0%, value/telecom=2-4%, utility=3-5%, banche=2-3%
-- P/E mancante: stima da EV/EBITDA×0.6 oppure usa media settore
-
-COMPITO 2 — CORREZIONE ANOMALIE FONDAMENTALI:
-- ROE >150% o <-150%: errore di scala, dividi per 100
+STEP 3 — CORREGGI ANOMALIE:
+- ROE >150% o <-150%: errore di scala Yahoo, dividi per 100
 - Dividend yield >20%: errore di scala, dividi per 10
-- P/E <0 con azienda redditizia: usa valore assoluto o stima
-- P/B <0: usa valore assoluto
-
-COMPITO 3 — VALIDAZIONE METRICHE CALCOLATE:
-Valuta se target, stop loss e fair value sono ragionevoli per questo titolo:
-- Target troppo ottimistico (>40% upside per large cap stabile)?
-- Stop loss troppo stretto (<4%) o troppo largo (>15%)?
-- Fair value coerente con consensus analisti?
-- Upside coerente con (target-prezzo)/prezzo?
-Se anomali, proponi valori corretti.
+- P/E <0 con azienda redditizia: usa valore assoluto
+- Verifica che target e stop loss siano ragionevoli
 
 Rispondi SOLO con JSON valido:
 {{
   "validation_score": <0-100>,
   "corrections": {{
-    "pe": <numero o null>,
+    "pe": <numero reale trovato o stimato, null se già ok>,
     "pb": <numero o null>,
     "ev_ebitda": <numero o null>,
-    "roe": <numero o null>,
-    "profit_margin": <numero o null>,
-    "revenue_growth": <numero o null>,
+    "roe": <numero percentuale es. 14.5 per 14.5%, null se ok>,
+    "profit_margin": <numero percentuale, null se ok>,
+    "revenue_growth": <numero percentuale, null se ok>,
     "debt_equity": <numero o null>,
     "beta": <numero o null>,
-    "dividend_yield": <numero o null>,
+    "dividend_yield": <numero percentuale, null se ok>,
     "rsi": <numero o null>,
     "fair_value": <numero o null>,
     "target_price": <numero o null>,
@@ -80,8 +87,8 @@ Rispondi SOLO con JSON valido:
     "upside_pct": <numero o null>
   }},
   "field_reasoning": {{
-    "pe": "<valore originale X → nuovo valore Y. Ragionamento: ...>",
-    "pb": "<spiegazione o null se non corretto>",
+    "pe": "<trovato X su Google / stimato X perché...>",
+    "pb": null,
     "ev_ebitda": null,
     "roe": "<spiegazione>",
     "profit_margin": null,
@@ -92,17 +99,14 @@ Rispondi SOLO con JSON valido:
     "rsi": null,
     "fair_value": "<spiegazione>",
     "target_price": "<spiegazione>",
-    "stop_loss": "<spiegazione>",
-    "upside_pct": "<spiegazione>"
+    "stop_loss": null,
+    "upside_pct": null
   }},
   "data_reliability": "<Alta|Media|Bassa>",
-  "summary": "<frase italiana che descrive le correzioni principali>"
+  "summary": "<frase italiana: dati trovati su Google + correzioni applicate>"
 }}
 
-REGOLE:
-- corrections: null = campo ok, numero = valore corretto/stimato
-- field_reasoning: null = non modificato, stringa = spiega il ragionamento con valore originale e nuovo
-- Sii specifico nel ragionamento: cita numeri, settore, logica usata"""
+"""
 
     try:
         response = requests.post(
@@ -110,7 +114,8 @@ REGOLE:
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1200}
+                "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1200},
+                "tools": [{"google_search_retrieval": {}}]
             },
             timeout=30
         )
