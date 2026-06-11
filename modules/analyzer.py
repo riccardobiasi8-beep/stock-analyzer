@@ -123,7 +123,18 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         sector = info.get("sector") or info.get("categoryName") or "N/A"
         industry = info.get("industry") or info.get("fundFamily") or "N/A"
         name = info.get("longName") or info.get("shortName") or ticker
-        currency = info.get("currency") or info.get("financialCurrency") or "USD"
+        currency = info.get("currency") or info.get("financialCurrency") or ""
+        if not currency:
+            if any(s in ticker for s in [".MI", ".PA", ".DE", ".AS", ".BR", ".MC", ".F", ".L"]):
+                currency = "EUR" if ".L" not in ticker else "GBP"
+            elif ".KS" in ticker or ".KQ" in ticker:
+                currency = "KRW"
+            elif ".T" in ticker or ".JP" in ticker:
+                currency = "JPY"
+            elif ".HK" in ticker:
+                currency = "HKD"
+            else:
+                currency = "USD"
 
         # Fix current_price if NaN — use last valid close
         import math as _math
@@ -136,6 +147,9 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # Sanity check: filter out absurd values BEFORE passing to Gemini
         # (Gemini will re-estimate these)
         if pe and (pe < 0 or pe > 500): pe = None
+        # FIX 4: P/E non ha senso se azienda in perdita
+        if profit_margin and profit_margin < 0 and pe and pe > 0:
+            pe = None  # utili negativi → P/E non applicabile
         if pb and pb < 0: pb = abs(pb)
         if roe and abs(roe) > 5: roe = None       # Yahoo returns ROE as decimal, >5 = >500% anomaly
         if profit_margin and abs(profit_margin) > 2: profit_margin = None  # >200% impossible
@@ -507,45 +521,51 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
 
         # REGOLA 1: Se AVOID/SELL → niente target rialzista, mostra downside
         is_avoid = score < 45
+        is_hold = 45 <= score < 65
+
         if is_avoid:
-            # Non mostrare una strategia di acquisto rialzista
             entry_price = None
-            # Calcola downside potenziale invece di upside
+            # FIX 9: Fair value nascosto per AVOID con fondamentali pessimi
+            if pe and pe > 100:
+                fair_value = None  # P/E eccessivo → FV non affidabile
+            # Downside target: 52-week low o -15%
             try:
                 low_52w = float(hist.tail(252)["Low"].min())
-                downside_target = round(max(low_52w, current_price * 0.85), 2)
-                target_price = downside_target  # target ribassista
-                upside = round((target_price - current_price) / current_price * 100, 1)  # negativo
-                upside_net = round(upside * 0.74, 1)
+                target_price = round(max(low_52w, current_price * 0.85), 2)
             except Exception:
                 target_price = round(current_price * 0.88, 2)
-                upside = round((target_price - current_price) / current_price * 100, 1)
-                upside_net = round(upside * 0.74, 1)
-            # Stop diventa target se eventual rimbalzo
-            stop_loss = round(current_price * 1.05, 2)  # stop su rimbalzo del 5%
+            upside = round((target_price - current_price) / current_price * 100, 1)  # negativo
+            upside_net = round(upside * 0.74, 1)
+            stop_loss = round(current_price * 1.05, 2)  # stop su rimbalzo
 
-        # REGOLA 2: BUY/HOLD con prezzo > fair value → declassa
+        # FIX 5: HOLD → congela tutti i campi operativi
+        elif is_hold:
+            entry_price = None
+            # Mantieni target e FV per riferimento ma senza entry
+
+        # REGOLA 2: BUY con prezzo > fair value → declassa
         elif fair_value and current_price > fair_value * 1.05 and score < 80:
             if signal == "🟢 BUY":
                 signal = "🟡 HOLD"
                 score = min(score, 64)
+                is_hold = True
+                entry_price = None
 
-        # REGOLA 3: P/E anomalo (>100) → fair value non può essere sopra prezzo attuale
-        # (P/E 343 con FV > prezzo è incoerente per aziende non-growth puro)
+        # FIX 1+2: Rendimento annuo con CAGR corretto
         try:
-            if pe and float(pe) > 100 and fair_value and fair_value > current_price * 1.10:
-                # Cappalo al consensus analisti se disponibile, altrimenti al prezzo attuale
-                if pillar1_consensus:
-                    fair_value = pillar1_consensus
+            if estimated_months and estimated_months > 0 and upside and target_price and entry_price:
+                years = estimated_months / 12.0
+                if years >= 1.0:
+                    # CAGR: (Target/Entry)^(1/anni) - 1
+                    annualized_return = round((pow(target_price / entry_price, 1.0 / years) - 1) * 100, 1)
                 else:
-                    fair_value = round(current_price * 1.05, 2)
+                    # Lineare per < 1 anno
+                    annualized_return = round((upside / estimated_months) * 12, 1)
+                annualized_return = min(annualized_return, 200)
+            elif is_avoid or is_hold:
+                annualized_return = None
         except Exception:
             pass
-
-        # Ricalcola upside finale coerente con target
-        if not is_avoid:
-            upside = ((target_price - current_price) / current_price * 100) if target_price else upside
-            upside_net = round(upside * 0.74, 1) if upside else None
 
         return {
             "ticker": ticker,
@@ -575,6 +595,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "signal": signal,
             "score": round(score),
             "is_avoid": is_avoid,
+            "is_hold": is_hold,
             "rsi": round(rsi_val, 1),
             "rsi_label": rsi_label,
             "macd": round(macd_val, 4),
