@@ -198,3 +198,4 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
                 "field_reasoning": {}, "summary": f"Errore: {str(e)[:100]}",
             }
         }
+        
