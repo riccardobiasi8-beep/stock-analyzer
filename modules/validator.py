@@ -172,11 +172,15 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
         corrected_fields = []
 
         field_map = {
+            # Fundamentals — AI can correct these
             "pe":"pe","pb":"pb","ev_ebitda":"ev_ebitda","roe":"roe",
             "profit_margin":"profit_margin","revenue_growth":"revenue_growth",
             "debt_equity":"debt_equity","beta":"beta","dividend_yield":"dividend_yield",
+            # Price targets — AI can correct these
             "fair_value":"fair_value","target_price":"target_price",
-            "stop_loss":"stop_loss","upside_pct":"upside_pct"
+            "stop_loss":"stop_loss",
+            # upside_pct and upside_net_pct are NEVER touched by AI
+            # They are always recalculated from target_price/current_price
         }
 
         for key, data_key in field_map.items():
@@ -192,19 +196,14 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
             except (TypeError, ValueError):
                 pass
 
-        # Recalc upside if target changed
-        if any("target_price" in c for c in corrected_fields):
-            tp = corrected_data.get("target_price")
-            cp = corrected_data.get("current_price")
-            if tp and cp and cp > 0:
-                new_upside = round((tp - cp) / cp * 100, 1)
-                corrected_data["upside_pct"] = new_upside
-                corrected_data["upside_net_pct"] = round(new_upside * 0.74, 1)
-
-        # Always recalc upside_net from upside_pct (keeps them consistent)
-        final_upside = corrected_data.get("upside_pct")
-        if final_upside is not None:
-            corrected_data["upside_net_pct"] = round(float(final_upside) * 0.74, 1)
+        # ALWAYS recalculate upside from target_price/current_price
+        # This is the ONLY correct source — AI never sets upside directly
+        tp = corrected_data.get("target_price")
+        cp = corrected_data.get("current_price")
+        if tp and cp and cp > 0:
+            new_upside = round((tp - cp) / cp * 100, 2)
+            corrected_data["upside_pct"] = new_upside
+            corrected_data["upside_net_pct"] = round(new_upside * 0.74, 2)
 
         print(f"[Validator] {ticker}: {len(corrected_fields)} corrections: {corrected_fields}")
 
