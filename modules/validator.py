@@ -121,6 +121,8 @@ Rispondi SOLO con questo JSON (nessun testo fuori):
 
         raw = _call_gemini(json_prompt, gemini_key, 1000, use_search=False)
 
+        print(f"[Validator RAW] {ticker}: {repr(raw[:500])}")
+
         # Clean JSON
         if "```json" in raw:
             raw = raw.split("```json")[1].split("```")[0].strip()
@@ -128,9 +130,11 @@ Rispondi SOLO con questo JSON (nessun testo fuori):
             raw = raw.split("```")[1].split("```")[0].strip()
 
         # Fix common JSON issues
-        raw = raw.replace(": null,", ": null,")
-        
+        raw = raw.strip()
+        print(f"[Validator CLEAN] {ticker}: {repr(raw[:300])}")
+
         validation = json.loads(raw)
+        print(f"[Validator PARSED] corrections: {validation.get('corrections', {})}")
 
         # ── Apply corrections ────────────────────────────────────────────
         corrected_data = dict(data)
