@@ -147,9 +147,9 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         # Sanity check: filter out absurd values BEFORE passing to Gemini
         # (Gemini will re-estimate these)
         if pe and (pe < 0 or pe > 500): pe = None
-        # FIX 4: P/E non ha senso se azienda in perdita
-        if profit_margin and profit_margin < 0 and pe and pe > 0:
-            pe = None  # utili negativi → P/E non applicabile
+        # FIX 4: P/E impossibile se azienda in perdita (margine negativo)
+        if profit_margin is not None and profit_margin < 0:
+            pe = None  # utili negativi → P/E non calcolabile
         if pb and pb < 0: pb = abs(pb)
         if roe and abs(roe) > 5: roe = None       # Yahoo returns ROE as decimal, >5 = >500% anomaly
         if profit_margin and abs(profit_margin) > 2: profit_margin = None  # >200% impossible
@@ -547,20 +547,18 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
                 is_hold = True
                 entry_price = None
 
-        # CAGR deterministico — calcolato dal backend, NON dall'AI
-        # Formula: (Target/PrezzoAttuale)^(1/anni) - 1
-        # Anni = estimated_months / 12.0 (float preciso, no arrotondamenti intermedi)
+        # Rendimento annualizzato — deterministico, NON generato dall'AI
+        # Regola: < 12 mesi → lineare puro; >= 12 mesi → CAGR
         try:
             annualized_return = None
-            if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and target_price and current_price and upside:
-                years = estimated_months / 12.0  # es. 19.2 mesi → 1.6 anni esatti
-                if years >= 1.0:
-                    # CAGR puro: (Target/PrezzoAttuale)^(1/anni) - 1
-                    _ratio = target_price / current_price
-                    annualized_return = round((pow(_ratio, 1.0 / years) - 1) * 100, 2)
+            if not is_avoid and not is_hold and estimated_months and estimated_months > 0 and upside is not None and target_price and current_price:
+                if estimated_months < 12.0:
+                    # Tasso lineare: (upside / mesi) * 12
+                    annualized_return = round((upside / estimated_months) * 12.0, 2)
                 else:
-                    # Tasso lineare per < 1 anno: upside / anni
-                    annualized_return = round(upside / years, 2)
+                    # CAGR: (Target/PrezzoAttuale)^(12/mesi) - 1
+                    years = estimated_months / 12.0
+                    annualized_return = round((pow(target_price / current_price, 1.0 / years) - 1) * 100, 2)
                 annualized_return = min(annualized_return, 200.0)
         except Exception:
             annualized_return = None
