@@ -1,32 +1,85 @@
 import json
 import requests
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro-latest",
+    "gemini-pro",
+]
+GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
-def _call_gemini(prompt: str, api_key: str, max_tokens: int = 1200, use_search: bool = False) -> str:
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens}
-    }
-    if use_search:
-        payload["tools"] = [{"google_search_retrieval": {}}]
-    
-    response = requests.post(
-        f"{GEMINI_URL}?key={api_key}",
-        headers={"Content-Type": "application/json"},
-        json=payload,
-        timeout=30
-    )
-    result = response.json()
-    if "error" in result:
-        raise Exception(result["error"].get("message", "Gemini error"))
-    candidates = result.get("candidates", [])
-    if not candidates:
-        raise Exception("Nessuna risposta da Gemini")
-    if candidates[0].get("finishReason") == "SAFETY":
-        raise Exception("Bloccato da filtri sicurezza")
-    return candidates[0]["content"]["parts"][0]["text"].strip()
+def _call_gemini_validator(prompt: str, api_key: str, max_tokens: int = 1200) -> str:
+    last_error = None
+    for model in GEMINI_MODELS:
+        try:
+            response = requests.post(
+                f"{GEMINI_BASE.format(model=model)}?key={api_key}",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens}
+                },
+                timeout=30
+            )
+            result = response.json()
+            if "error" in result:
+                last_error = result["error"].get("message", "error")
+                print(f"[Validator] Model {model} failed: {last_error[:80]}")
+                continue
+            candidates = result.get("candidates", [])
+            if not candidates:
+                last_error = "no candidates"
+                continue
+            if candidates[0].get("finishReason") == "SAFETY":
+                raise Exception("SAFETY block")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if not parts:
+                continue
+            print(f"[Validator] OK with model: {model}")
+            return parts[0].get("text", "").strip()
+        except Exception as e:
+            if "SAFETY" in str(e):
+                raise
+            last_error = str(e)
+            continue
+    raise Exception(f"Tutti i modelli falliti: {last_error}")
+
+
+def _call_gemini_search(prompt: str, api_key: str, max_tokens: int = 600) -> str:
+    """Search-enabled call — only with models that support it."""
+    search_models = ["gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
+    last_error = None
+    for model in search_models:
+        try:
+            response = requests.post(
+                f"{GEMINI_BASE.format(model=model)}?key={api_key}",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": max_tokens},
+                    "tools": [{"google_search_retrieval": {}}]
+                },
+                timeout=30
+            )
+            result = response.json()
+            if "error" in result:
+                last_error = result["error"].get("message", "error")
+                continue
+            candidates = result.get("candidates", [])
+            if not candidates:
+                continue
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if parts:
+                print(f"[Validator Search] OK with model: {model}")
+                return parts[0].get("text", "").strip()
+        except Exception as e:
+            last_error = str(e)
+            continue
+    # Fallback without search
+    return _call_gemini_validator(prompt, api_key, max_tokens)
 
 
 def validate_stock_data(data: dict, gemini_key: str) -> dict:
@@ -40,6 +93,9 @@ def validate_stock_data(data: dict, gemini_key: str) -> dict:
     missing = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
                "revenue_growth","debt_equity","beta","dividend_yield"]
                if data.get(k) is None]
+    available = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
+                 "revenue_growth","debt_equity","beta","dividend_yield"]
+                 if data.get(k) is not None]
 
     ticker = data.get('ticker', '')
     name = data.get('name', ticker)
@@ -48,52 +104,47 @@ def validate_stock_data(data: dict, gemini_key: str) -> dict:
     currency = data.get('currency', 'USD')
 
     try:
-        # ── STEP 1: Search for real data ────────────────────────────────
+        # Step 1: Search for missing data
+        search_result = ""
         if missing:
-            search_prompt = f"""Search Google for current financial data for {name} ({ticker}).
-I need these specific metrics: {', '.join(missing)}
-Also find: sector, P/E ratio, ROE, profit margin, debt/equity, beta, dividend yield.
-Return a summary of the real data you find. Be specific with numbers."""
-
+            search_prompt = f"""Search for current financial data for {name} ({ticker}).
+Find: {', '.join(missing)}. Also: sector, P/E, ROE, profit margin, debt/equity, beta, dividend yield.
+Return specific numbers you find."""
             try:
-                search_result = _call_gemini(search_prompt, gemini_key, 600, use_search=True)
-            except Exception:
-                search_result = f"Ticker {ticker}, nome {name}, prezzo {price} {currency}, settore {sector}"
-        else:
-            search_result = f"Dati già disponibili da Yahoo Finance per {ticker}"
+                search_result = _call_gemini_search(search_prompt, gemini_key, 600)
+            except Exception as e:
+                search_result = f"Ricerca non disponibile. Usa conoscenza su {name} ({ticker}), settore {sector}."
 
-        # ── STEP 2: Validate and format as JSON ─────────────────────────
-        json_prompt = f"""Sei un analista finanziario. Hai cercato dati per {name} ({ticker}).
+        # Step 2: Validate and format as JSON
+        json_prompt = f"""Analista finanziario Goldman Sachs. Analizza {name} ({ticker}).
 
-RISULTATI RICERCA:
-{search_result}
+RICERCA WEB:
+{search_result if search_result else 'Nessun risultato ricerca'}
 
-DATI YAHOO FINANCE (potrebbero essere incompleti/errati):
+DATI YAHOO FINANCE:
 - Prezzo: {price} {currency} | Settore: {sector}
 - P/E: {data.get('pe')} | P/B: {data.get('pb')} | EV/EBITDA: {data.get('ev_ebitda')}
-- ROE: {data.get('roe')}% | Margine netto: {data.get('profit_margin')}% | Crescita ricavi: {data.get('revenue_growth')}%
-- Debt/Equity: {data.get('debt_equity')} | Beta: {data.get('beta')} | Dividend yield: {data.get('dividend_yield')}%
-- Target: {data.get('target_price')} | Stop: {data.get('stop_loss')} | Fair Value: {data.get('fair_value')}
+- ROE: {data.get('roe')}% | Margine: {data.get('profit_margin')}% | Crescita: {data.get('revenue_growth')}%
+- D/E: {data.get('debt_equity')} | Beta: {data.get('beta')} | Dividend: {data.get('dividend_yield')}%
+- Target: {data.get('target_price')} | Stop: {data.get('stop_loss')} | FV: {data.get('fair_value')}
 
-REGOLE CORREZIONE:
-- ROE da Yahoo è in decimali (0.142 = 14.2%) — se già convertito in % non dividere
-- Dividend yield da Yahoo è in decimali (0.005 = 0.5%) — controlla scala
-- P/E anomalo (>500 o negativo): correggi
-- Se un campo era None/mancante: fornisci il valore trovato in ricerca o stima dal settore
+CAMPI MANCANTI: {missing if missing else 'nessuno'}
 
-Rispondi SOLO con questo JSON (nessun testo fuori):
+Fornisci valori per TUTTI i campi mancanti. Correggi anomalie (ROE>150% dividi per 100, dividend>20% dividi per 10).
+
+Rispondi SOLO con JSON valido:
 {{
   "validation_score": <0-100>,
   "corrections": {{
-    "pe": <numero o null se già corretto>,
+    "pe": <numero o null>,
     "pb": <numero o null>,
     "ev_ebitda": <numero o null>,
-    "roe": <numero percentuale es. 14.2, null se ok>,
-    "profit_margin": <numero percentuale, null se ok>,
-    "revenue_growth": <numero percentuale, null se ok>,
+    "roe": <numero percentuale o null>,
+    "profit_margin": <numero percentuale o null>,
+    "revenue_growth": <numero percentuale o null>,
     "debt_equity": <numero o null>,
     "beta": <numero o null>,
-    "dividend_yield": <numero percentuale, null se ok>,
+    "dividend_yield": <numero percentuale o null>,
     "rsi": null,
     "fair_value": <numero o null>,
     "target_price": <numero o null>,
@@ -116,39 +167,30 @@ Rispondi SOLO con questo JSON (nessun testo fuori):
     "upside_pct": null
   }},
   "data_reliability": "<Alta|Media|Bassa>",
-  "summary": "<frase italiana con i dati trovati e corretti>"
+  "summary": "<frase italiana>"
 }}"""
 
-        raw = _call_gemini(json_prompt, gemini_key, 1000, use_search=False)
+        raw = _call_gemini_validator(json_prompt, gemini_key, 1000)
+        print(f"[Validator RAW] {ticker}: {repr(raw[:200])}")
 
-        print(f"[Validator RAW] {ticker}: {repr(raw[:500])}")
-
-        # Clean JSON
         if "```json" in raw:
             raw = raw.split("```json")[1].split("```")[0].strip()
         elif "```" in raw:
             raw = raw.split("```")[1].split("```")[0].strip()
 
-        # Fix common JSON issues
-        raw = raw.strip()
-        print(f"[Validator CLEAN] {ticker}: {repr(raw[:300])}")
-
         validation = json.loads(raw)
-        print(f"[Validator PARSED] corrections: {validation.get('corrections', {})}")
+        print(f"[Validator PARSED] {ticker}: corrections={validation.get('corrections',{})}")
 
-        # ── Apply corrections ────────────────────────────────────────────
         corrected_data = dict(data)
         corrections = validation.get("corrections", {})
         field_reasoning = validation.get("field_reasoning", {})
 
         field_map = {
-            "pe": "pe", "pb": "pb", "ev_ebitda": "ev_ebitda",
-            "roe": "roe", "profit_margin": "profit_margin",
-            "revenue_growth": "revenue_growth", "debt_equity": "debt_equity",
-            "beta": "beta", "dividend_yield": "dividend_yield",
-            "rsi": "rsi", "fair_value": "fair_value",
-            "target_price": "target_price", "stop_loss": "stop_loss",
-            "upside_pct": "upside_pct"
+            "pe":"pe","pb":"pb","ev_ebitda":"ev_ebitda","roe":"roe",
+            "profit_margin":"profit_margin","revenue_growth":"revenue_growth",
+            "debt_equity":"debt_equity","beta":"beta","dividend_yield":"dividend_yield",
+            "rsi":"rsi","fair_value":"fair_value","target_price":"target_price",
+            "stop_loss":"stop_loss","upside_pct":"upside_pct"
         }
 
         corrected_fields = []
@@ -165,7 +207,6 @@ Rispondi SOLO con questo JSON (nessun testo fuori):
             except (TypeError, ValueError):
                 pass
 
-        # Recalculate upside if target changed
         if any("target_price" in c for c in corrected_fields):
             tp = corrected_data.get("target_price")
             cp = corrected_data.get("current_price")
@@ -193,12 +234,8 @@ Rispondi SOLO con questo JSON (nessun testo fuori):
         return {
             **data,
             "validation": {
-                "status": "error",
-                "score": None,
-                "reliability": "N/A",
-                "issues": [str(e)],
-                "corrected_fields": [],
-                "field_reasoning": {},
-                "summary": f"Errore validazione: {str(e)[:100]}",
+                "status": "error", "score": None, "reliability": "N/A",
+                "issues": [str(e)], "corrected_fields": [],
+                "field_reasoning": {}, "summary": f"Errore: {str(e)[:100]}",
             }
         }
