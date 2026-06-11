@@ -3,10 +3,10 @@ import json
 
 GEMINI_ENDPOINTS = [
     ("gemini-2.0-flash-lite", "v1beta"),
+    ("gemini-2.0-flash-lite-001", "v1beta"),
+    ("gemini-2.5-flash-lite", "v1beta"),
     ("gemini-2.0-flash", "v1beta"),
     ("gemini-2.5-flash", "v1beta"),
-    ("gemini-2.0-flash-lite-001", "v1beta"),
-    ("gemini-2.0-flash-001", "v1beta"),
 ]
 GEMINI_BASE = "https://generativelanguage.googleapis.com/{version}/models/{model}:generateContent"
 
