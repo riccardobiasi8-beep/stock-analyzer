@@ -80,15 +80,31 @@ def _call_ai(prompt: str, gemini_key: str, groq_key: str, max_tokens: int = 800)
 
 def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     """Summary sopra il grafico."""
-    signal = data.get('signal', 'HOLD')
+    signal = data.get("signal", "HOLD")
+    score = data.get("score", 50)
     verdict = "BUY" if "BUY" in signal else ("AVOID" if "AVOID" in signal or "SELL" in signal else "HOLD")
-    prompt = f"""Analista finanziario senior. Analizza {data['name']} ({data['ticker']}) in italiano in 3 frasi max:
-1. Fondamentali: P/E {data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%
-2. Tecnica: RSI {data.get('rsi','N/A')}, prezzo {'sopra' if data.get('ma50') and data.get('current_price',0) > data.get('ma50',0) else 'sotto'} MA50, score {data.get('score',0)}/100
-3. Conferma il verdetto già calcolato dal sistema: {verdict}. Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}.
-IMPORTANTE: il verdetto DEVE essere {verdict} — non cambiarlo."""
+    rsi = data.get("rsi", 50) or 50
+    price = data.get("current_price", 0) or 0
+    fair_value = data.get("fair_value")
+    if rsi >= 70: rsi_desc = f"ipercomprato ({rsi}, >70)"
+    elif rsi <= 30: rsi_desc = f"ipervenduto ({rsi}, <30)"
+    else: rsi_desc = f"neutro ({rsi}, range 30-70 = nessun estremo)"
+    fv_note = ""
+    if fair_value and price:
+        if price > fair_value * 1.05:
+            fv_note = f"Prezzo {price} SOPRA fair value {fair_value} = sopravvalutato. "
+        elif price < fair_value * 0.95:
+            fv_note = f"Prezzo {price} SOTTO fair value {fair_value} = sottovalutato. "
+    prompt = (
+        f"Analista finanziario. Analizza {data['name']} ({data['ticker']}) in italiano, 3 frasi.\n"
+        f"Fondamentali: P/E {data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%\n"
+        f"Tecnica: RSI = {rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price > (data.get('ma50') or 0) else 'sotto'} MA50. {fv_note}\n"
+        f"Sistema ha calcolato: {verdict} (score {score}/100). Entry:{data.get('entry_price')}. Target:{data.get('target_price')}. Stop:{data.get('stop_loss')}.\n"
+        f"REGOLE: verdetto DEVE essere {verdict}. RSI 30-70 = neutro non estremo. "
+        f"Se score<60 spiega perche HOLD/AVOID. Upside % sempre da prezzo attuale non da entry."
+    )
     try:
-        return _call_ai(prompt, api_key, groq_key, 250)
+        return _call_ai(prompt, api_key, groq_key, 300)
     except Exception as e:
         print(f"Gemini analyze_stock error: {e}")
         return None
