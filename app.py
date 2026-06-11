@@ -557,12 +557,18 @@ if page == "🔍 Analisi Titolo":
             cur = data['currency']
             price = data['current_price']
             chg_1d = None
+            chg_1d_pct = None
             try:
-                h1d = data["hist"]["Close"]
+                import math
+                h1d = data["hist"]["Close"].dropna()
                 if len(h1d) >= 2:
-                    chg_1d = round(h1d.iloc[-1] - h1d.iloc[-2], 2)
-                    chg_1d_pct = round(chg_1d / h1d.iloc[-2] * 100, 2)
-            except: chg_1d = chg_1d_pct = None
+                    v1 = float(h1d.iloc[-1])
+                    v2 = float(h1d.iloc[-2])
+                    if not math.isnan(v1) and not math.isnan(v2) and v2 != 0:
+                        chg_1d = round(v1 - v2, 2)
+                        chg_1d_pct = round(chg_1d / v2 * 100, 2)
+            except Exception:
+                chg_1d = chg_1d_pct = None
 
             chg_color = "#30d158" if (chg_1d or 0) >= 0 else "#ff453a"
             chg_str = f"{'+' if (chg_1d or 0)>=0 else ''}{chg_1d} ({'+' if (chg_1d_pct or 0)>=0 else ''}{chg_1d_pct}%)" if chg_1d is not None else ""
@@ -590,24 +596,29 @@ if page == "🔍 Analisi Titolo":
             # ── Validation setup + ai_metric helper ──────────────────────
             val = data.get("validation", {})
             _corrected_fields = set()
+            _field_reasoning = {}
             if val.get("status") == "completed":
                 for c in val.get("corrected_fields", []):
                     _corrected_fields.add(c.split(":")[0].strip())
-            # Debug: print to Streamlit logs
+                _field_reasoning = val.get("field_reasoning", {})
+            # Debug
             import sys
             print(f"[DEBUG] validation status: {val.get('status')} | corrected: {val.get('corrected_fields',[])} | _corrected_fields: {_corrected_fields}", file=sys.stderr)
 
             def ai_metric(label, field_key, value, suffix="", delta=None):
                 is_ai = field_key in _corrected_fields
                 display_val = f"{value}{suffix}" if value is not None else "N/A"
+                reasoning = _field_reasoning.get(field_key, "")
                 if is_ai:
+                    tooltip_html = f'title="{reasoning}"' if reasoning else ''
                     st.markdown(f"""<div style='background:#1c1c1e;border:0.5px solid #0a84ff44;border-radius:12px;padding:14px 16px'>
     <div style='font-size:0.65rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.08em'>{label}</div>
     <div style='font-size:1.25rem;font-weight:600;color:#0a84ff;margin-top:4px;display:flex;align-items:center;gap:6px'>
         {display_val}
-        <span style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px'>ⓘ AI</span>
+        <span {tooltip_html} style='font-size:0.6rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:4px;padding:1px 6px;cursor:help'>ⓘ AI</span>
     </div>
     {f'<div style="font-size:0.75rem;color:#48484a;margin-top:2px">{delta}</div>' if delta else ''}
+    {f'<div style="font-size:0.7rem;color:#636366;margin-top:6px;line-height:1.4;border-top:0.5px solid #2c2c2e;padding-top:6px">{reasoning}</div>' if reasoning else ''}
 </div>""", unsafe_allow_html=True)
                 else:
                     st.metric(label, display_val, delta=delta)
@@ -704,15 +715,20 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 def _cell(label, value, color=None, ai_field=None):
                     if color is None: color = '#ffffff'
                     is_ai = bool(ai_field and ai_field in _corrected_fields)
+                    reasoning = _field_reasoning.get(ai_field, '') if ai_field else ''
                     ai_span = '<span style="font-size:0.55rem;background:#0a84ff22;color:#0a84ff;border:1px solid #0a84ff55;border-radius:3px;padding:0 4px">ⓘ AI</span>'
                     badge = ' ' + ai_span if is_ai else ''
                     vc = '#0a84ff' if is_ai else color
                     bo = 'border:0.5px solid #0a84ff44;' if is_ai else ''
-                    val = str(value) if value else '—'
+                    val_str = str(value) if value else '\u2014'
+                    r_short = (reasoning[:90] + '\u2026') if len(reasoning) > 90 else reasoning
+                    reason_html = f'<div style="font-size:0.62rem;color:#636366;margin-top:4px;line-height:1.3">{r_short}</div>' if (is_ai and reasoning) else ''
+                    ttip = reasoning.replace('"', "'") if reasoning else ''
                     return (
-                        f"<div style='background:#000000;padding:11px 14px;{bo}'>"
+                        f"<div style='background:#000000;padding:11px 14px;{bo}' title='{ttip}'>"
                         f"<div style='font-size:0.62rem;color:#48484a;font-weight:600;text-transform:uppercase;letter-spacing:0.06em'>{label}{badge}</div>"
-                        f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val}</div></div>")
+                        f"<div style='font-size:0.95rem;font-weight:600;color:{vc};margin-top:2px'>{val_str}</div>"
+                        f"{reason_html}</div>")
 
                 upside_str = f'+{upside}%' if upside else '—'
                 netg_str = f'+{net_g}%' if net_g else '—'
@@ -1030,12 +1046,12 @@ Spiega paradossi consensus, short interest, earnings pattern, data chiave, verde
                     if sent_cache_key in st.session_state:
                         import re as _re2
                         _txt = st.session_state[sent_cache_key] or ""
+                        sc_col = "#30d158" if sent.get("score",50) >= 65 else ("#ff9f0a" if sent.get("score",50) >= 45 else "#ff453a")
                         if not _txt:
                             st.caption("Analisi non disponibile — riprova.")
                         else:
                             _txt_html = _re2.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', _txt)
-                        sc_col = "#30d158" if sent.get("score",50) >= 65 else ("#ff9f0a" if sent.get("score",50) >= 45 else "#ff453a")
-                        st.markdown(f"""<div style='background:#1c1c1e;border-left:3px solid {sc_col};padding:16px 20px;border-radius:0 12px 12px 0;font-size:0.85rem;color:#ebebf5;line-height:1.75'>{_txt_html.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
+                            st.markdown(f"""<div style='background:#1c1c1e;border-left:3px solid {sc_col};padding:16px 20px;border-radius:0 12px 12px 0;font-size:0.85rem;color:#ebebf5;line-height:1.75'>{_txt_html.replace(chr(10),'<br>')}</div>""", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1216,4 +1232,3 @@ elif page == "🌡️ Sentiment Mercato":
                     ac = "#30d158" if art["score"] > 0.05 else ("#ff453a" if art["score"] < -0.05 else "#636366")
                     st.markdown(f"<span style='color:{ac}'>●</span> [{art['title'][:60]}...]({art['url']})",
                                 unsafe_allow_html=True)
-                    
