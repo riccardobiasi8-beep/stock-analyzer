@@ -119,6 +119,7 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     else:
         ops_str = f"{target_str}. {stop_str}"
     prompt = (
+        f"ANALISI PER: {data['ticker']} ({data['name']}). USA SOLO QUESTI DATI.\n"
         f"Analista finanziario. Analizza {data['name']} ({data['ticker']}) in italiano, 3 frasi.\n"
         f"Fondamentali: P/E {'N/A (utili negativi)' if (data.get('profit_margin') or 0) < 0 else data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%\n"
         f"Tecnica: RSI={rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price>(data.get('ma50') or 0) else 'sotto'} MA50. Score {score}/100.\n"
