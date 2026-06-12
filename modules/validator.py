@@ -80,9 +80,21 @@ def validate_stock_data(data: dict, gemini_key: str, groq_key: str = "") -> dict
             "reliability": "N/A", "summary": ""
         }}
 
-    missing = [k for k in ["pe","pb","ev_ebitda","roe","profit_margin",
-               "revenue_growth","debt_equity","beta","dividend_yield"]
-               if data.get(k) is None]
+    # Only proceed if there are actual data anomalies to correct
+    # We no longer ask AI to estimate missing values — N/A stays N/A
+    available = {k: data.get(k) for k in ["pe","pb","ev_ebitda","roe","profit_margin",
+                 "revenue_growth","debt_equity","beta","dividend_yield"]
+                 if data.get(k) is not None}
+
+    if not available:
+        # No data at all — nothing to validate or correct
+        return {**data, "validation": {
+            "status": "skipped",
+            "score": None, "issues": [],
+            "corrected_fields": [], "field_reasoning": {},
+            "reliability": "N/A",
+            "summary": "Dati fondamentali non disponibili per questo ticker."
+        }}
 
     ticker = data.get('ticker', '')
     name = data.get('name', ticker)
@@ -90,20 +102,24 @@ def validate_stock_data(data: dict, gemini_key: str, groq_key: str = "") -> dict
     price = data.get('current_price')
     currency = data.get('currency', 'USD')
 
-    prompt = f"""Sei un analista Goldman Sachs. Analizza {name} ({ticker}).
-Cerca su Google i dati fondamentali aggiornati se mancano.
+    prompt = f"""Sei un analista finanziario. Verifica e correggi SOLO anomalie nei dati esistenti per {name} ({ticker}).
 
-DATI YAHOO FINANCE (None = mancante):
-Settore:{sector} | Prezzo:{price} {currency} | MarketCap:{data.get('market_cap')}
+DATI DISPONIBILI (verifica solo questi — non inventare valori per campi assenti):
+Settore:{sector} | Prezzo:{price} {currency}
 P/E:{data.get('pe')} | P/B:{data.get('pb')} | EV/EBITDA:{data.get('ev_ebitda')}
 ROE:{data.get('roe')}% | Margine:{data.get('profit_margin')}% | Crescita:{data.get('revenue_growth')}%
 D/E:{data.get('debt_equity')} | Beta:{data.get('beta')} | Dividend:{data.get('dividend_yield')}%
-Target:{data.get('target_price')} | Stop:{data.get('stop_loss')} | FV:{data.get('fair_value')}
+Fair Value:{data.get('fair_value')}
 
-CAMPI MANCANTI: {missing if missing else 'nessuno'}
+CORREGGI SOLO SE ANOMALIA EVIDENTE:
+- ROE > 150% o < -150%: errore scala Yahoo → dividi per 100
+- Dividend yield > 20%: errore scala → dividi per 10
+- P/E negativo con margine positivo: usa valore assoluto
+- P/B negativo: usa valore assoluto
+- Beta < 0 o > 5: anomalia, metti null
 
-Per i campi mancanti: stima valori reali cercando su Google o usando la tua conoscenza del settore.
-Correggi anomalie: ROE>150% dividi per 100, dividend>20% dividi per 10.
+PER I CAMPI NULL: lascia null — non stimare, non inventare.
+Se un dato non c'è, è perché non è disponibile dalle fonti ufficiali.
 
 Rispondi SOLO con JSON valido (nessun testo fuori):
 {{
