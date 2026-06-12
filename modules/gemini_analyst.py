@@ -121,7 +121,10 @@ def analyze_stock(data: dict, api_key: str, groq_key: str = "") -> str:
     prompt = (
         f"ANALISI PER: {data['ticker']} ({data['name']}). USA SOLO QUESTI DATI.\n"
         f"Analista finanziario. Analizza {data['name']} ({data['ticker']}) in italiano, 3 frasi.\n"
-        f"Fondamentali: P/E {'N/A (utili negativi)' if (data.get('profit_margin') or 0) < 0 else data.get('pe','N/A')}, ROE {data.get('roe','N/A')}%, margine {data.get('profit_margin','N/A')}%\n"
+        f"Fondamentali: P/E {'N/A (utili negativi)' if (data.get('profit_margin') or 0) < 0 else data.get('pe','N/A')}, "
+        f"{'ROA (proxy — equity negativo da buyback)' if data.get('roe_is_roa') else 'ROE'} {data.get('roe','N/A')}%, "
+        f"margine {data.get('profit_margin','N/A')}%\n"
+        f"{'NOTA: ROE non applicabile per buyback massicci — usa ROA come misura di efficienza.' if data.get('roe_is_roa') else ''}\n"
         f"Tecnica: RSI={rsi_desc}. Prezzo {'sopra' if data.get('ma50') and price>(data.get('ma50') or 0) else 'sotto'} MA50. Score {score}/100.\n"
         f"{fv_note}\n"
         f"Dati ESATTI: {entry_str}. {ops_str}.\n"
