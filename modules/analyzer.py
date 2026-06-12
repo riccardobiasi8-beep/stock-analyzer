@@ -185,6 +185,8 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             debt_equity    = _enriched.get('debt_equity', debt_equity)
             beta           = _enriched.get('beta', beta)
             dividend_yield = _enriched.get('dividend_yield', dividend_yield)
+            # Flag: ROE was replaced by ROA due to low equity (buyback companies)
+            _roe_is_roa    = _enriched.get('roe_is_roa', False)
 
             # Re-apply sanity checks on enriched values
             if pe and (pe < 0 or pe > 500): pe = None
@@ -666,6 +668,7 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
             "pb": round(pb, 2) if pb else None,
             "ev_ebitda": round(ev_ebitda, 1) if ev_ebitda else None,
             "roe": round(roe * 100, 1) if roe else None,
+            "roe_is_roa": _roe_is_roa if '_roe_is_roa' in dir() else False,
             "profit_margin": round(profit_margin * 100, 1) if profit_margin else None,
             "revenue_growth": round(revenue_growth * 100, 1) if revenue_growth else None,
             "debt_equity": round(debt_equity, 2) if debt_equity else None,
