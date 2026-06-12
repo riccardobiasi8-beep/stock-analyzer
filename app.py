@@ -960,28 +960,28 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     st.markdown("**📐 Fair Value — Zona di prezzo ragionevole**")
                 if not data.get('is_avoid'):
                     fv_col1, fv_col2, fv_col3, fv_col4 = st.columns(4)
-                fv_color = "#30d158" if fv and fv > data['current_price'] else "#ff9f0a"
-                fv_col1.metric(
-                    f"Fair Value ({cur})",
-                    f"{fv:.2f}" if fv else "N/A",
-                    delta=f"+{round((fv-data['current_price'])/data['current_price']*100,1)}%" if fv else None,
-                    help="Media ponderata dei 3 pilastri: Consensus 50% + Multipli 30% + DCF 20%"
-                )
-                fv_col2.metric(
-                    f"① Consensus ({n_an} analisti)",
-                    f"{fv_c:.2f} {cur}" if fv_c else "N/A",
-                    help="Target medio banche d'affari — peso 50%"
-                )
-                fv_col3.metric(
-                    "② Multipli settore",
-                    f"{fv_m:.2f} {cur}" if fv_m else "N/A",
-                    help="EPS forward × P/E medio settore — peso 30%"
-                )
-                fv_col4.metric(
-                    "③ DCF conservativo",
-                    f"{fv_d:.2f} {cur}" if fv_d else "N/A",
-                    help="DCF 5 anni, growth cap 8%, WACC 8-12% — peso 20%"
-                )
+                    fv_color = "#30d158" if fv and fv > data['current_price'] else "#ff9f0a"
+                    fv_col1.metric(
+                        f"Fair Value ({cur})",
+                        f"{fv:.2f}" if fv else "N/A",
+                        delta=f"+{round((fv-data['current_price'])/data['current_price']*100,1)}%" if fv else None,
+                        help="Media ponderata dei 3 pilastri: Consensus 50% + Multipli 30% + DCF 20%"
+                    )
+                    fv_col2.metric(
+                        f"① Consensus ({n_an} analisti)",
+                        f"{fv_c:.2f} {cur}" if fv_c else "N/A",
+                        help="Target medio banche d'affari — peso 50%"
+                    )
+                    fv_col3.metric(
+                        "② Multipli settore",
+                        f"{fv_m:.2f} {cur}" if fv_m else "N/A",
+                        help="EPS forward × P/E medio settore — peso 30%"
+                    )
+                    fv_col4.metric(
+                        "③ DCF conservativo",
+                        f"{fv_d:.2f} {cur}" if fv_d else "N/A",
+                        help="DCF 5 anni, growth cap 8%, WACC 8-12% — peso 20%"
+                    )
                 st.divider()
 
                 # ── Fondamentali ─────────────────────────────────────────
