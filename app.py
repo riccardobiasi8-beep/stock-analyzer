@@ -991,7 +991,8 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                     ai_metric("P/B Ratio", "pb", data["pb"])
                     ai_metric("EV/EBITDA", "ev_ebitda", data["ev_ebitda"])
                 with c2:
-                    ai_metric("ROE", "roe", data["roe"], suffix="%" if data["roe"] else "")
+                    _roe_label = "ROA (proxy)" if data.get('roe_is_roa') else "ROE"
+                    ai_metric(_roe_label, "roe", data["roe"], suffix="%" if data["roe"] else "")
                     ai_metric("Margine Netto", "profit_margin", data["profit_margin"], suffix="%" if data["profit_margin"] else "")
                     ai_metric("Crescita Ricavi", "revenue_growth", data["revenue_growth"], suffix="%" if data["revenue_growth"] else "")
                 with c3:
