@@ -208,7 +208,13 @@ def run_screener(tickers: list, min_score: int = 60, max_results: int = 20) -> p
         return pd.DataFrame()
 
     df = pd.DataFrame(results)
-    df = df[df["Score"] >= min_score]
+
+    # Filter: only BUY signals with score >= min_score
+    # Exclude AVOID/SELL even if score was high before negative-fundamentals cap
+    df = df[
+        (df["Score"] >= min_score) &
+        (df["Segnale"].str.contains("BUY", na=False))
+    ]
 
     # Sort by: best annualized return first, then score as tiebreaker
     # Titles with no annualized_return go to the bottom
