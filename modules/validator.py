@@ -153,21 +153,28 @@ Rispondi SOLO con JSON valido (nessun testo fuori):
             if groq_key:
                 print(f"[Validator] Switching to Groq fallback...")
                 try:
-                    # Groq has smaller context — use shorter prompt
-                    groq_prompt = f"""Analista finanziario. Dati per {name} ({ticker}):
-Settore:{sector} | Prezzo:{price} {currency}
-P/E:{data.get('pe')} | P/B:{data.get('pb')} | ROE:{data.get('roe')}% | Margine:{data.get('profit_margin')}%
-D/E:{data.get('debt_equity')} | Beta:{data.get('beta')} | Dividend:{data.get('dividend_yield')}%
-EV/EBITDA:{data.get('ev_ebitda')} | Crescita:{data.get('revenue_growth')}%
-Fair Value attuale:{data.get('fair_value')}
-
-Campi mancanti (None): {missing}
-Correggi anomalie (ROE>150 dividi/100, dividend>20 dividi/10, P/E negativo=null se margine<0).
-Stima valori mancanti dal settore.
-
-Rispondi SOLO con JSON:
-{{"validation_score":80,"corrections":{{"pe":null,"pb":null,"ev_ebitda":null,"roe":null,"profit_margin":null,"revenue_growth":null,"debt_equity":null,"beta":null,"dividend_yield":null,"fair_value":null}},"field_reasoning":{{"pe":null,"pb":null,"ev_ebitda":null,"roe":null,"profit_margin":null,"revenue_growth":null,"debt_equity":null,"beta":null,"dividend_yield":null,"fair_value":null}},"data_reliability":"Media","summary":"Dati validati da Groq"}}"""
-                    raw = _call_groq(groq_prompt, groq_key, 600)
+                    groq_prompt = (
+                        f"Sei un analista finanziario. Compila i dati mancanti per {name} ({ticker}), settore: {sector}.\n"
+                        f"Prezzo attuale: {price} {currency}\n"
+                        f"Dati Yahoo (None = mancante): P/E:{data.get('pe')} P/B:{data.get('pb')} "
+                        f"ROE:{data.get('roe')}% Margine:{data.get('profit_margin')}% "
+                        f"D/E:{data.get('debt_equity')} Beta:{data.get('beta')} "
+                        f"Dividend:{data.get('dividend_yield')}% EV/EBITDA:{data.get('ev_ebitda')} "
+                        f"Crescita:{data.get('revenue_growth')}% FairValue:{data.get('fair_value')}\n"
+                        f"Campi da compilare: {missing if missing else 'nessuno, solo verifica anomalie'}\n"
+                        f"Regole: ROE>150 dividi per 100. Dividend>20 dividi per 10. P/E=null se margine<0.\n"
+                        f"Stima i valori mancanti dalla tua conoscenza del settore {sector}.\n\n"
+                        f"Rispondi SOLO con questo JSON (nessun testo fuori):\n"
+                        f'{{"validation_score":85,"corrections":{{"pe":VALORE_O_NULL,"pb":VALORE_O_NULL,'
+                        f'"ev_ebitda":VALORE_O_NULL,"roe":VALORE_O_NULL,"profit_margin":VALORE_O_NULL,'
+                        f'"revenue_growth":VALORE_O_NULL,"debt_equity":VALORE_O_NULL,"beta":VALORE_O_NULL,'
+                        f'"dividend_yield":VALORE_O_NULL,"fair_value":VALORE_O_NULL}},'
+                        f'"field_reasoning":{{"pe":null,"pb":null,"ev_ebitda":null,"roe":null,'
+                        f'"profit_margin":null,"revenue_growth":null,"debt_equity":null,"beta":null,'
+                        f'"dividend_yield":null,"fair_value":null}},'
+                        f'"data_reliability":"Media","summary":"Dati stimati da Groq per {ticker}"}}'
+                    )
+                    raw = _call_groq(groq_prompt, groq_key, 800)
                     print(f"[Validator] Groq OK, raw length: {len(raw)}")
                 except Exception as groq_err:
                     print(f"[Validator] Groq also failed: {groq_err}")
