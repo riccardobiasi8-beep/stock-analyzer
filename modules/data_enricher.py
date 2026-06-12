@@ -31,12 +31,43 @@ def enrich_from_yfinance_statements(ticker_obj, data: dict) -> dict:
             return None
 
         # ROE = Net Income / Stockholders Equity
+        # Guardrail: se equity < 10% del Total Assets (buyback companies come AAPL, MCD)
+        # il ROE diventa privo di senso → usa ROA come proxy
         if data.get('roe') is None:
             net_income = _get(fin, 'Net Income', 'NetIncome')
             equity = _get(bal, 'Stockholders Equity', 'StockholdersEquity',
                          'Total Stockholder Equity')
-            if net_income and equity and equity != 0:
-                data['roe'] = round(net_income / equity * 100, 2)
+            total_assets = _get(bal, 'Total Assets', 'TotalAssets')
+
+            if net_income and equity:
+                # Check if equity is meaningful
+                if total_assets and total_assets > 0:
+                    equity_ratio = abs(equity) / total_assets
+                else:
+                    equity_ratio = 1.0  # assume ok if can't check
+
+                if equity_ratio < 0.10 or equity <= 0:
+                    # Equity near zero or negative — ROE meaningless
+                    # Use ROA instead: Net Income / Total Assets
+                    if total_assets and total_assets > 0:
+                        roa = round(net_income / total_assets * 100, 2)
+                        data['roe'] = roa  # store ROA value
+                        data['roe_is_roa'] = True  # flag for prompt
+                        print(f"[Enricher T1] Low equity ({equity_ratio:.1%}) → using ROA={roa}% instead of ROE")
+                    else:
+                        data['roe'] = None  # truly unavailable
+                elif equity != 0:
+                    roe_calc = round(net_income / equity * 100, 2)
+                    # Sanity: ROE > 1000% is probably a data error
+                    if abs(roe_calc) > 1000:
+                        # Try ROA as fallback
+                        if total_assets and total_assets > 0:
+                            data['roe'] = round(net_income / total_assets * 100, 2)
+                            data['roe_is_roa'] = True
+                        else:
+                            data['roe'] = None
+                    else:
+                        data['roe'] = roe_calc
 
         # Profit Margin = Net Income / Revenue
         if data.get('profit_margin') is None:
@@ -206,3 +237,4 @@ def enrich_stock_data(ticker_obj, ticker_sym: str, data: dict,
     after = _missing()
     print(f"[Enricher] {ticker_sym} — still missing after: {after}")
     return data
+                          
