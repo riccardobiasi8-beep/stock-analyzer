@@ -942,7 +942,7 @@ Scrivi 2 frasi sui fondamentali+tecnica poi verdetto secco: BUY/HOLD/AVOID. Entr
                 _fund_fields = ["pe","pb","ev_ebitda","roe","profit_margin","revenue_growth","debt_equity","beta","dividend_yield"]
                 _available_funds = [f for f in _fund_fields if data.get(f) is not None]
                 if len(_available_funds) == 0:
-                    st.warning("⚠️ Yahoo Finance non ha dati fondamentali per questo ticker. Gemini sta stimando i valori in base al settore — i dati mostrati sono stime AI, non dati ufficiali.")
+                    st.warning("⚠️ Dati fondamentali non disponibili per questo ticker — Yahoo Finance e le fonti alternative non hanno restituito dati ufficiali. I campi mostrati come N/A non sono stime.")
                 elif len(_available_funds) < 4:
                     st.info(f"ℹ️ Dati parziali: {len(_available_funds)}/9 campi disponibili da Yahoo Finance. I rimanenti sono stimati da Gemini.")
                 # ── Fair Value — 3 Pilastri ──────────────────────────────
