@@ -157,6 +157,44 @@ def get_stock_data(ticker: str, period: str = "1y") -> dict:
         if dividend_yield and dividend_yield > 0.5: dividend_yield = None  # >50% impossible
 
         # ══════════════════════════════════════════════════════════════════
+        # DATA ENRICHMENT — cascata fonti gratuite per dati mancanti
+        # ══════════════════════════════════════════════════════════════════
+        try:
+            from modules.data_enricher import enrich_stock_data
+            import streamlit as _st
+            _fmp_key = _st.secrets.get("FMP_API_KEY", "")
+            _av_key = _st.secrets.get("ALPHA_VANTAGE_KEY", "")
+
+            # Build partial data dict to enrich
+            _partial = {
+                'pe': pe, 'pb': pb, 'ev_ebitda': ev_ebitda,
+                'roe': roe, 'profit_margin': profit_margin,
+                'revenue_growth': revenue_growth, 'debt_equity': debt_equity,
+                'beta': beta, 'dividend_yield': dividend_yield,
+                'current_price': current_price,
+            }
+            _enriched = enrich_stock_data(stock, ticker, _partial, _fmp_key, _av_key)
+
+            # Apply enriched values back
+            pe             = _enriched.get('pe', pe)
+            pb             = _enriched.get('pb', pb)
+            ev_ebitda      = _enriched.get('ev_ebitda', ev_ebitda)
+            roe            = _enriched.get('roe', roe)
+            profit_margin  = _enriched.get('profit_margin', profit_margin)
+            revenue_growth = _enriched.get('revenue_growth', revenue_growth)
+            debt_equity    = _enriched.get('debt_equity', debt_equity)
+            beta           = _enriched.get('beta', beta)
+            dividend_yield = _enriched.get('dividend_yield', dividend_yield)
+
+            # Re-apply sanity checks on enriched values
+            if pe and (pe < 0 or pe > 500): pe = None
+            if profit_margin is not None and profit_margin < 0: pe = None
+            if roe and abs(roe) > 500: roe = roe / 100  # fix scale
+            if dividend_yield and dividend_yield > 50: dividend_yield = dividend_yield / 100
+        except Exception as _enrich_err:
+            print(f"[Enricher] Skipped: {_enrich_err}")
+
+        # ══════════════════════════════════════════════════════════════════
         # FAIR VALUE — 3 PILASTRI PROFESSIONALI
         # ══════════════════════════════════════════════════════════════════
 
